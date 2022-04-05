@@ -1,0 +1,23 @@
+version: "3"
+
+services:
+  lilywhitebot:
+    image: lilywhitebot
+    restart: always
+    working_dir: /home/node/app
+    volumes:
+      - lilywhitebot-config:/home/node/app/config
+      - lilywhitebot-cache:/home/node/cache
+
+  nginx:
+    # ...
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # 與上面保持一致
+      - lilywhitebot-cache:/var/www/html
+
+volumes:
+    lilywhitebot-config: ./config
+    lilywhitebot-cache: ./cache

@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+  lilywhitebot:
+    image: lilywhitebot
+    restart: always
+    working_dir: /home/node/app
+    volumes:
+      - lilywhitebot-config:/home/node/app/config
+
+volumes:
+    lilywhitebot-config: ./config
