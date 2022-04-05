@@ -23,7 +23,13 @@ export class BridgeMsg<R extends RawMsg = RawMsg> extends Context<R> implements 
 	}
 
 	private _from_client: string;
+	public get from_client(): string {
+		return this._from_client;
+	}
 	private _to_client: string;
+	public get to_client(): string {
+		return this._to_client;
+	}
 
 	private _from_uid: string;
 	public get from_uid(): string {

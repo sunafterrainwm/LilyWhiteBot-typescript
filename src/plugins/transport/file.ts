@@ -431,12 +431,7 @@ export function init( bridge: TransportBridge, _cnf: TransportConfig ) {
 				if ( servemedia.sizeLimit && servemedia.sizeLimit > 0 && file.size && file.size > servemedia.sizeLimit * 1024 ) {
 					winston.debug( `[transport/file] <FileUploader> #${ msg.msgId } File ${ index + 1 }/${ fileCount }: Size limit exceeded. Ignore.` );
 				} else {
-					promises.push( uploadFile( file ).then( function ( item ) {
-						if ( item && file.tgUploadCallback ) {
-							item.tgUploadCallback = file.tgUploadCallback;
-						}
-						return item;
-					} ) );
+					promises.push( uploadFile( file ) );
 				}
 			}
 

@@ -19,5 +19,15 @@ services:
       - lilywhitebot-cache:/var/www/html
 
 volumes:
-    lilywhitebot-config: ./config
-    lilywhitebot-cache: ./cache
+  lilywhitebot-config:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./config
+  lilywhitebot-cache:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./cache

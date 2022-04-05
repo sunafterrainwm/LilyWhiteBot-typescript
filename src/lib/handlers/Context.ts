@@ -35,15 +35,13 @@ export type File = {
 
 	prepareFile?(): Promise<void>;
 
-	tgUploadCallback?( context: Context ): Promise<Message>;
+	tgUploadCallback?( context: Context, replyMsgId: number ): Promise<Message>;
 };
 
 export type UploadFile = {
 	type: string;
 
 	url: string;
-
-	tgUploadCallback?( context: Context ): Promise<Message>;
 };
 
 export type ContextExtra = {

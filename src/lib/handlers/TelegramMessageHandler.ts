@@ -61,7 +61,7 @@ type Extras = |
 	TGT.ExtraVideo |
 	TGT.ExtraDocument;
 
-export type TelegramSendMessageOpipons<T extends Extras = TGT.ExtraReplyMessage> = T & {
+export type TelegramSendMessageOpipons<T extends Extras = TGT.ExtraReplyMessage> = Partial<T> & {
 	withNick?: boolean
 }
 
@@ -396,9 +396,9 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 				file.url = ( await that.getFileLink( msg.file_id ) ).href;
 			},
 			// eslint-disable-next-line no-shadow
-			tgUploadCallback( context: Context<TContext> ) {
+			tgUploadCallback( context: Context<TContext>, replyMsgId: number ) {
 				const chat_id = context.to;
-				const options = that.#prepareReplyOptions<Extras>( context, {} );
+				const options = that.#prepareReplyOptions<Extras>( context, replyMsgId, {} );
 				switch ( type ) {
 					case "photo":
 						return that._client.telegram.sendPhoto( chat_id, msg.file_id, options );
@@ -612,14 +612,15 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 
 	#prepareReplyOptions<T extends Extras = TGT.ExtraReplyMessage>(
 		context: Context<TContext>,
+		replyMsgId: number,
 		options?: TelegramSendMessageOpipons<T>
 	): TelegramSendMessageOpipons<T> {
 		if ( ( context._rawdata && context._rawdata.message ) ) {
 			if ( context.isPrivate ) {
 				return options;
 			} else {
-				const options2 = copyObject( options );
-				options2.reply_to_message_id = context._rawdata.message.message_id;
+				const options2 = copyObject<TelegramSendMessageOpipons<T>>( options || {} );
+				options2.reply_to_message_id = replyMsgId;
 				options2.allow_sending_without_reply = true;
 				return options2;
 			}
@@ -633,7 +634,11 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		message: string,
 		options?: TelegramSendMessageOpipons
 	): Promise<TT.Message> {
-		return this.say( context.to, message, this.#prepareReplyOptions( context, options ) );
+		return this.say(
+			context.to,
+			message,
+			this.#prepareReplyOptions( context, context._rawdata.message.message_id, options )
+		);
 	}
 
 	public replyWithPhoto(
@@ -641,7 +646,11 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		photo: TT.InputFile,
 		options?: TelegramSendMessageOpipons<TGT.ExtraPhoto>
 	): Promise<TT.Message.PhotoMessage> {
-		return this._client.telegram.sendPhoto( context.to, photo, this.#prepareReplyOptions( context, options ) );
+		return this._client.telegram.sendPhoto(
+			context.to,
+			photo,
+			this.#prepareReplyOptions( context, context._rawdata.message.message_id, options )
+		);
 	}
 
 	public getChatAdministrators( group: string | number ): Promise<TT.ChatMember[]> {

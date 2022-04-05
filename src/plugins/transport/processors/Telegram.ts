@@ -6,7 +6,7 @@ import * as TT from "typegram";
 import type { TelegramMessageHandler } from "@app/src/lib/handlers/TelegramMessageHandler";
 import type { TransportConfig, TransportProcessor } from "@app/src/plugins/transport";
 
-import { send, map as bridgeMap } from "@app/src/plugins/transport/bridge";
+import { send, map as bridgeMap, truncate } from "@app/src/plugins/transport/bridge";
 import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
 import delay from "@app/src/lib/delay";
 import winston = require( "winston" );
@@ -319,6 +319,21 @@ async function receive( msg: BridgeMsg ) {
 		param: htmlEscape( msg.param )
 	};
 
+	if ( msg.extra.reply ) {
+		const reply = msg.extra.reply;
+		meta.reply_nick = reply.nick;
+		meta.reply_user = reply.username;
+		if ( reply.isText ) {
+			meta.reply_text = truncate( reply.message );
+		} else {
+			meta.reply_text = reply.message;
+		}
+	}
+	if ( msg.extra.forward ) {
+		meta.forward_nick = msg.extra.forward.nick;
+		meta.forward_user = msg.extra.forward.username;
+	}
+
 	// 自定义消息样式
 	let styleMode = "simple";
 	const messageStyle = config.options.messageStyle;
@@ -331,6 +346,10 @@ async function receive( msg: BridgeMsg ) {
 		template = messageStyle[ styleMode ].notice;
 	} else if ( msg.extra.isAction ) {
 		template = messageStyle[ styleMode ].action;
+	} else if ( msg.extra.reply ) {
+		template = messageStyle[ styleMode ].reply;
+	} else if ( msg.extra.forward ) {
+		template = messageStyle[ styleMode ].forward;
 	} else {
 		template = messageStyle[ styleMode ].message;
 	}
@@ -340,16 +359,23 @@ async function receive( msg: BridgeMsg ) {
 	const newRawMsg = await tgHandler.sayWithHTML( msg.to, output );
 
 	// 如果含有相片和音訊
-	if ( msg.extra.uploads && msg.extra.uploads.length ) {
+
+	// 源文件來自 Telegram
+	if ( msg.from_client === tgHandler.type ) {
+		if ( msg.extra.files && msg.extra.files.length ) {
+			for ( const file of msg.extra.files ) {
+				if ( typeof file.tgUploadCallback === "function" ) {
+					await file.tgUploadCallback( msg, newRawMsg.message_id );
+				}
+			}
+		}
+	} else if ( msg.extra.uploads && msg.extra.uploads.length ) {
 		const replyOption = {
 			reply_to_message_id: newRawMsg.message_id
 		};
 
 		for ( const upload of msg.extra.uploads ) {
-			// 源文件來自 Telegram
-			if ( typeof upload.tgUploadCallback === "function" ) {
-				await upload.tgUploadCallback( msg );
-			} else if ( upload.type === "audio" ) {
+			if ( upload.type === "audio" ) {
 				await tgHandler.sendAudio( msg.to, upload.url, replyOption );
 			} else if ( upload.type === "photo" ) {
 				if ( path.extname( upload.url ) === ".gif" ) {
@@ -362,12 +388,6 @@ async function receive( msg: BridgeMsg ) {
 			}
 		}
 	// 就算上傳失敗，如果源文件來自 Telegram ，依然上傳
-	} else if ( msg.extra.files && msg.extra.files.length ) {
-		for ( const file of msg.extra.files ) {
-			if ( typeof file.tgUploadCallback === "function" ) {
-				await file.tgUploadCallback( msg );
-			}
-		}
 	}
 }
 

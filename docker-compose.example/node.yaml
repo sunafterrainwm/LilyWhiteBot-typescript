@@ -10,4 +10,9 @@ services:
     command: "npm run install-build-start"
 
 volumes:
-    lilywhitebot-dir: ./
+  lilywhitebot-dir:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./
