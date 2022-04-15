@@ -51,11 +51,6 @@ config.yaml
 config.ts
 config.js
 config.json
-badwords.yml
-badwords.yaml
-badwords.ts
-badwords.js
-badwords.json
 /config/*
 !/config/*.example.ts
 !/config/*.type.ts

@@ -19,19 +19,19 @@
 		"asciify-image": "^0.1.8",
 		"discord.js": "^13.6.0",
 		"eslint-config-wikimedia": "^0.22.1",
-		"https-proxy-agent": "^5.0.0",
+		"https-proxy-agent": "^5.0.1",
 		"irc-colors": "~1.5.0",
 		"irc-upd": "~0.11.0",
 		"ishisashiencoding": "^0.5.0",
 		"js-yaml": "^4.1.0",
-		"lru-cache": "^7.7.3",
+		"lru-cache": "^7.8.1",
 		"module-alias": "^2.2.2",
 		"request": "~2.88.2",
 		"sharp": "^0.30.3",
 		"string-format": "^2.0.0",
 		"telegraf": "^4.7.0",
 		"typescript": "^4.6.3",
-		"winston": "^3.6.0",
+		"winston": "^3.7.2",
 		"xml2js": "^0.4.23"
 	},
 	"devDependencies": {
@@ -40,19 +40,20 @@
 		"@types/lru-cache": "^7.6.1",
 		"@types/module-alias": "^2.0.1",
 		"@types/request": "^2.48.8",
-		"@types/sharp": "^0.30.0",
+		"@types/sharp": "^0.30.2",
 		"@types/string-format": "^2.0.0",
-		"@types/xml2js": "^0.4.9",
-		"@typescript-eslint/eslint-plugin": "^5.17.0",
-		"@typescript-eslint/parser": "^5.17.0",
-		"eslint": "^8.12.0",
+		"@types/xml2js": "^0.4.10",
+		"@typescript-eslint/eslint-plugin": "^5.19.0",
+		"@typescript-eslint/parser": "^5.19.0",
+		"eslint": "^8.13.0",
 		"eslint-import-resolver-typescript": "^2.7.1",
-		"eslint-plugin-import": "^2.25.4",
-		"grunt": "^1.4.1",
+		"eslint-plugin-import": "^2.26.0",
+		"grunt": "^1.5.2",
 		"grunt-contrib-clean": "^2.0.0",
 		"jpeg-js": "^0.4.3"
 	},
+	"packageManager": "npm@7.0.0",
 	"engines": {
-		"node": ">=14.0.0"
+		"node": ">=16.0.0"
 	}
 }

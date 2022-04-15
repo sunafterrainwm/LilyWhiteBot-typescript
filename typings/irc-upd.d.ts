@@ -1,7 +1,7 @@
 // Type definitions for irc-upd v0.10.0
 // Project: https://github.com/Throne3d/node-irc
-// Definitions by: sunny00217wm <https://github.com/sunny00217wm>
-// Definitions: https://github.com/WPAFC-zhwiki/ICG-BOT/tree/master/src/lib/irc-upd.d.ts
+// Definitions by: sunafterrainwm <sunafterrainwm@gmail.com>
+// Definitions: https://github.com/sunafterrainwm/LilyWhiteBot-typescript/tree/typescript/typings/irc-upd.d.ts
 
 // / <reference types="node" />
 
