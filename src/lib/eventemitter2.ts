@@ -131,7 +131,7 @@ function resolveOptions<T>( options: Partial<T> | never, schema: T, reducers?: P
 
 	for ( let i = 0; i < length; i++ ) {
 		option = keys[ i ];
-		if ( !allowUnknown && !hasOwnProperty.call( schema, option ) ) {
+		if ( !allowUnknown && !hasOwnProperty.call( schema, option ) ) { // lgtm [js/trivial-conditional]
 			throw new Error( 'Unknown "' + option + '" option' );
 		}
 		value = options[ option ];
@@ -286,8 +286,6 @@ export default class EventEmitter<E extends Events = Events> implements Required
 	public many<K extends keyof E>( event: K, timesToListen: number, fn: E[ K ], options: OnOptions_Objectify ): Listener<E, K>;
 	public many<K extends keyof E>( event: K, timesToListen: number, fn: E[ K ], options?: boolean | Partial<OnOptions> ): this;
 	public many( event: EventName, timesToListen: number, fn: Event, options: OnOptions_Objectify ): Listener;
-	public many( event: EventName, timesToListen: number, fn: Event, options?: boolean | Partial<OnOptions> ): this;
-	public many<K extends keyof E>( event: K, timesToListen: number, fn: E[ K ], options?: boolean | Partial<OnOptions> ): this;
 	public many( event: EventName, timesToListen: number, fn: Event, options?: boolean | Partial<OnOptions> ): this;
 	public many( event: EventName, ttl: number, fn: Event, options?: boolean | Partial<OnOptions> ): this | Listener {
 		return this.#many( event, ttl, fn, false, options );

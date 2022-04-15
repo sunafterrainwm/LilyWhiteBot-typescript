@@ -164,7 +164,7 @@ function hook( event: keyof TransportHooks ): ( msg: BridgeMsg ) => Promise<void
 				return Promise.resolve();
 			}
 
-			if ( !enables || ( enables && enables.includes( msg.to_uid ) ) ) {
+			if ( !enables || ( enables && enables.includes( msg.to_uid ) ) ) { // lgtm [js/trivial-conditional]
 				func = cmd.callbacks[ event ];
 			}
 
