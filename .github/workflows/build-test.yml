@@ -1,0 +1,34 @@
+name: Build Test
+
+on:
+  push:
+    branches:
+      - typescript
+    tags:        
+      - v**
+  pull_request:
+    branches:
+      - typescript
+  pull_request_review:
+    branches:
+      - typescript
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Create temp config
+      run: cp config/config.example.ts config/config.ts
+
+    - name: Lint & Build
+      run: |
+        npm run lint
+        npm run build
