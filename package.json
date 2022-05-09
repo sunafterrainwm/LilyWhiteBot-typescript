@@ -10,6 +10,8 @@
 	"scripts": {
 		"start": "grunt built && node src/main.js",
 		"ts-start": "ts-node src/main.ts",
+		"test": "npm run lint && npm run build && npm start",
+		"lint": "eslint src/**",
 		"build": "grunt",
 		"buildimage": "docker build . -t lilywhitebot",
 		"install-start": "npm install && npm run ts-start",
