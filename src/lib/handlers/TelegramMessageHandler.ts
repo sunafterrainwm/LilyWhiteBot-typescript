@@ -228,7 +228,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 					context.extra.isChannel = true;
 				} else if (
 					ctx.from.id === 1087968824 /* GroupAnonymousBot */ &&
-					ctx.message.chat.type === "group" || ctx.message.chat.type === "supergroup"
+					( ctx.message.chat.type === "group" || ctx.message.chat.type === "supergroup" )
 				) {
 					context.from = ctx.chat.id;
 					context.nick = `Group ${ ctx.message.chat.title }`;
