@@ -1,6 +1,6 @@
 {
 	"name": "lilywhitebot",
-	"version": "2.0.0-alpha.1",
+	"version": "2.0.0",
 	"description": "多聊天群互联机器人（目前支持 QQ、Telegram、IRC、Discord）",
 	"repository": "github:sunafterrainwm/LilyWhiteBot-typescript",
 	"license": "AGPL-3.0-or-later",
