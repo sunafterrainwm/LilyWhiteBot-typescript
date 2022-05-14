@@ -18,8 +18,8 @@
  *     ]
  * }
  */
-import type { PluginExport } from "@app/src/bot.type";
-import type { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import type { PluginExport } from "@app/bot.type";
+import type { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 type RegExpAble = RegExp | string;
 
@@ -44,7 +44,7 @@ export interface Filter {
 	filter_reply: boolean;
 }
 
-declare module "@app/config/config.type" {
+declare module "@config/config.type" {
 	interface PluginConfigs {
 		filter: {
 			filters?: Filter[];

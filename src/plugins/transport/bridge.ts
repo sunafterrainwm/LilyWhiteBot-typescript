@@ -1,10 +1,10 @@
 import winston = require( "winston" );
 
-import type { GetChild, handlers, MessageHandler } from "@app/src/bot.type";
-import type { Context, RawMsg } from "@app/src/lib/handlers/Context";
-import type { TransportConfig } from "@app/src/plugins/transport";
+import type { GetChild, handlers, MessageHandler } from "@app/bot.type";
+import type { Context, RawMsg } from "@app/lib/handlers/Context";
+import type { TransportConfig } from "@app/plugins/transport";
 
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 export interface TransportProcessor<N extends string = ""> {
 	init( handler: GetChild<handlers, N, MessageHandler>, config: TransportConfig ): Promise<void>;

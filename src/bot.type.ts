@@ -1,8 +1,8 @@
-import type { ConfigTS, PluginConfigs } from "@app/config/config.type";
-import type { MessageHandler } from "@app/src/lib/handlers/MessageHandler";
+import type { ConfigTS, PluginConfigs } from "@config/config.type";
+import type { MessageHandler } from "@app/lib/handlers/MessageHandler";
 
-export type { MessageHandler } from "@app/src/lib/handlers/MessageHandler";
-export type { RawMsg, RawMsgMap } from "@app/src/lib/handlers/Context";
+export type { MessageHandler } from "@app/lib/handlers/MessageHandler";
+export type { RawMsg, RawMsgMap } from "@app/lib/handlers/Context";
 
 export type GetChild<P, A, F = void> = A extends keyof P ? P[ A ] : F;
 export interface ExtendsMap<T extends string, S, M extends Record<T, S>> extends Map<T, S> {
@@ -19,22 +19,22 @@ export type MakeCallableConstructor<T extends abstract new ( ...args: any[] ) =>
 };
 
 export type handlers = {
-	IRC: import( "@app/src/lib/handlers/IRCMessageHandler" ).IRCMessageHandler;
-	Telegram: import( "@app/src/lib/handlers/TelegramMessageHandler" ).TelegramMessageHandler;
-	Discord: import( "@app/src/lib/handlers/DiscordMessageHandler" ).DiscordMessageHandler;
+	IRC: import( "@app/lib/handlers/IRCMessageHandler" ).IRCMessageHandler;
+	Telegram: import( "@app/lib/handlers/TelegramMessageHandler" ).TelegramMessageHandler;
+	Discord: import( "@app/lib/handlers/DiscordMessageHandler" ).DiscordMessageHandler;
 }
 
 export type handlerClasses = {
 	IRC: {
-		object: typeof import( "@app/src/lib/handlers/IRCMessageHandler" ).IRCMessageHandler;
+		object: typeof import( "@app/lib/handlers/IRCMessageHandler" ).IRCMessageHandler;
 		options: ConfigTS[ "IRC" ];
 	};
 	Telegram: {
-		object: typeof import( "@app/src/lib/handlers/TelegramMessageHandler" ).TelegramMessageHandler;
+		object: typeof import( "@app/lib/handlers/TelegramMessageHandler" ).TelegramMessageHandler;
 		options: ConfigTS[ "IRC" ];
 	};
 	Discord: {
-		object: typeof import( "@app/src/lib/handlers/DiscordMessageHandler" ).DiscordMessageHandler;
+		object: typeof import( "@app/lib/handlers/DiscordMessageHandler" ).DiscordMessageHandler;
 		options: ConfigTS[ "IRC" ];
 	};
 }
@@ -63,8 +63,8 @@ export interface PluginManagerPlugins {
  * global item of pluginManager
  */
 export interface PluginManagerGlobal {
-	Context: typeof import( "@app/src/lib/handlers/Context" ).Context;
-	MessageHandler: typeof import( "@app/src/lib/handlers/MessageHandler" ).MessageHandler;
+	Context: typeof import( "@app/lib/handlers/Context" ).Context;
+	MessageHandler: typeof import( "@app/lib/handlers/MessageHandler" ).MessageHandler;
 }
 
 export interface PluginExport<N extends string> {

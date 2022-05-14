@@ -8,11 +8,11 @@ import format = require( "string-format" );
 
 import type { IMessage } from "irc-upd";
 
-import type { IRCMessageHandler } from "@app/src/lib/handlers/IRCMessageHandler";
-import type { TransportConfig, TransportProcessor } from "@app/src/plugins/transport";
+import type { IRCMessageHandler } from "@app/lib/handlers/IRCMessageHandler";
+import type { TransportConfig, TransportProcessor } from "@app/plugins/transport";
 
-import { send, truncate, map as bridgeMap } from "@app/src/plugins/transport/bridge";
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import { send, truncate, map as bridgeMap } from "@app/plugins/transport/bridge";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 let config: TransportConfig;
 let icHandler: IRCMessageHandler;

@@ -8,11 +8,11 @@ import tls = require( "tls" );
 import type * as TT from "typegram";
 import winston = require( "winston" );
 
-import { MessageHandler, Command, BaseEvents } from "@app/src/lib/handlers/MessageHandler";
-import { Context, File } from "@app/src/lib/handlers/Context";
-import { getFriendlySize, getFriendlyLocation } from "@app/src/lib/util";
+import { MessageHandler, Command, BaseEvents } from "@app/lib/handlers/MessageHandler";
+import { Context, File } from "@app/lib/handlers/Context";
+import { getFriendlySize, getFriendlyLocation } from "@app/lib/util";
 
-type TelegramConf = import( "@app/config/config.type" ).ConfigTS[ "Telegram" ];
+type TelegramConf = import( "@config/config.type" ).ConfigTS[ "Telegram" ];
 
 export interface TelegramEvents extends BaseEvents<Telegraf, TContext> {
 	"group.text"( context: Context<TContext> ): void;

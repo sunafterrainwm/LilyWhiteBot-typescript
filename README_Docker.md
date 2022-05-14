@@ -53,6 +53,8 @@ npm run buildimage && npm run build
 ```
 而後在bot目錄創建 docker-compose.yaml 檔案，內容請參考 [docker-compose.example/lilywhitebot.yaml](docker-compose.example/lilywhitebot.yaml) 進行設置。
 
+您也可以選用 [https://ghcr.io/sunafterrainwm/lilywhitebot](ghcr.io 上的image)，方法是把第五行的image改成`ghcr.io/sunafterrainwm/lilywhitebot:<目標標籤>`，但由於image內部包含大量的node_module而非常之大，僅適合不想自己構建的人使用。
+
 #### 在每次重啟時重新構建
 在bot目錄創建 docker-compose.yaml 檔案，內容請參考 [docker-compose.example/node.yaml](docker-compose.example/node.yaml) 。由於每次執行時 docker 都將重新構建，除非需要頻繁更新以做測試否則不建議使用此方法。
 

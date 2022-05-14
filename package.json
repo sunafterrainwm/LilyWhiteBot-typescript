@@ -1,6 +1,6 @@
 {
 	"name": "lilywhitebot",
-	"version": "2.0.0-alpha.1",
+	"version": "2.0.1-alpha.1",
 	"description": "多聊天群互联机器人（目前支持 QQ、Telegram、IRC、Discord）",
 	"repository": "github:sunafterrainwm/LilyWhiteBot-typescript",
 	"license": "AGPL-3.0-or-later",
@@ -14,13 +14,13 @@
 		"lint": "eslint src/**",
 		"build": "grunt",
 		"buildimage": "docker build . -t lilywhitebot",
-		"install-start": "npm install && npm run ts-start",
-		"install-build-start": "npm install && npm run build && npm run start"
+		"install-start": "npm ci && npm run ts-start",
+		"install-build-start": "npm ci && npm run build && npm run start",
+		"initial": "node scripts/initial-plugins.js"
 	},
 	"dependencies": {
-		"asciify-image": "^0.1.8",
 		"discord.js": "^13.6.0",
-		"eslint-config-wikimedia": "^0.22.1",
+		"form-data": "^4.0.0",
 		"https-proxy-agent": "^5.0.1",
 		"irc-colors": "~1.5.0",
 		"irc-upd": "~0.11.0",
@@ -33,10 +33,10 @@
 		"string-format": "^2.0.0",
 		"telegraf": "^4.7.0",
 		"typescript": "^4.6.3",
-		"winston": "^3.7.2",
-		"xml2js": "^0.4.23"
+		"winston": "^3.7.2"
 	},
 	"devDependencies": {
+		"@types/grunt": "^0.4.27",
 		"@types/js-yaml": "^4.0.5",
 		"@types/lodash": "^4.14.181",
 		"@types/lru-cache": "^7.6.1",
@@ -48,11 +48,11 @@
 		"@typescript-eslint/eslint-plugin": "^5.19.0",
 		"@typescript-eslint/parser": "^5.19.0",
 		"eslint": "^8.13.0",
+		"eslint-config-wikimedia": "^0.22.1",
 		"eslint-import-resolver-typescript": "^2.7.1",
 		"eslint-plugin-import": "^2.26.0",
 		"grunt": "^1.5.2",
-		"grunt-contrib-clean": "^2.0.0",
-		"jpeg-js": "^0.4.3"
+		"grunt-contrib-clean": "^2.0.0"
 	},
 	"packageManager": "npm@7.0.0",
 	"engines": {

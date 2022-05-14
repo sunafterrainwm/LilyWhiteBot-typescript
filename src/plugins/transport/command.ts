@@ -17,10 +17,10 @@
 
 import winston = require( "winston" );
 
-import type { TransportBridge, TransportConfig } from "@app/src/plugins/transport";
-import type { TransportHook, TransportHooks } from "@app/src/plugins/transport/bridge";
+import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
+import type { TransportHook, TransportHooks } from "@app/plugins/transport/bridge";
 
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 export type TransportCommand = TransportHook<[BridgeMsg], void>;
 

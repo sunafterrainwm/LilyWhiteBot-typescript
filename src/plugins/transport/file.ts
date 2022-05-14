@@ -10,10 +10,10 @@ import sharp = require( "sharp" );
 import stream = require( "stream" );
 import winston = require( "winston" );
 
-import type { File, UploadFile } from "@app/src/lib/handlers/Context";
-import type { TransportBridge, TransportConfig } from "@app/src/plugins/transport";
+import type { File, UploadFile } from "@app/lib/handlers/Context";
+import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 
-import pkg = require( "@app/package.json" );
+import pkg = require( "@package.json" );
 
 export interface TransportServemediaBase {
 	/**

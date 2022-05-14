@@ -10,19 +10,22 @@ import moduleAlias = require( "module-alias" );
 import path = require( "path" );
 import winston = require( "winston" );
 moduleAlias.addAliases( {
-	"@app": path.join( __dirname, ".." )
+	"@app": path.normalize( __dirname ),
+	"@package.json": path.join( __dirname, "..", "package.json" ),
+	"@config": path.join( __dirname, "..", "config" ),
+	"@plugins": path.join( __dirname, "..", "plugins" )
 } );
 
-import type { ConfigTS } from "@app/config/config.type";
-import type { MakeCallableConstructor, PluginManager } from "@app/src/bot.type";
+import type { ConfigTS } from "@config/config.type";
+import type { MakeCallableConstructor, PluginManager } from "@app/bot.type";
 
-import pkg = require( "@app/package.json" );
-import { Context } from "@app/src/lib/handlers/Context";
-import { MessageHandler } from "@app/src/lib/handlers/MessageHandler";
-import { loadConfig } from "@app/src/lib/util";
+import pkg = require( "@package.json" );
+import { Context } from "@app/lib/handlers/Context";
+import { MessageHandler } from "@app/lib/handlers/MessageHandler";
+import { loadConfig } from "@app/lib/util";
 
 ( async function () {
-	const allHandlers = new Map( [
+	const allHandlers = new Map<string, string>( [
 		[ "IRC", "IRCMessageHandler" ],
 		[ "Telegram", "TelegramMessageHandler" ],
 		[ "Discord", "DiscordMessageHandler" ]
@@ -124,7 +127,7 @@ import { loadConfig } from "@app/src/lib/util";
 		winston.info( `Starting ${ client } bot...` );
 
 		const options = config[ client ];
-		const Handler: MakeCallableConstructor<typeof MessageHandler> = ( await import( `@app/src/lib/handlers/${ allHandlers.get( client ) }` ) ).default;
+		const Handler: MakeCallableConstructor<typeof MessageHandler> = ( await import( `@app/lib/handlers/${ allHandlers.get( client ) }` ) ).default;
 		const handler = new Handler( options );
 		handler.start();
 
@@ -147,7 +150,7 @@ import { loadConfig } from "@app/src/lib/util";
 	for ( const plugin of config.enablePlugins ) {
 		try {
 			winston.info( `Loading plugin: ${ plugin }` );
-			const p = await ( ( await import( `@app/src/plugins/${ plugin }` ) ).default( pluginManager, config.plugins[ plugin ] || {} ) );
+			const p = await ( ( await import( `@plugins/${ plugin }` ) ).default( pluginManager, config.plugins[ plugin ] || {} ) );
 			if ( p ) {
 				pluginManager.plugins[ plugin ] = p;
 			} else {

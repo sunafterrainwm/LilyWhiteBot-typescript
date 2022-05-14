@@ -3,12 +3,12 @@ import format = require( "string-format" );
 import { Context as TContext } from "telegraf";
 import * as TT from "typegram";
 
-import type { TelegramMessageHandler } from "@app/src/lib/handlers/TelegramMessageHandler";
-import type { TransportConfig, TransportProcessor } from "@app/src/plugins/transport";
+import type { TelegramMessageHandler } from "@app/lib/handlers/TelegramMessageHandler";
+import type { TransportConfig, TransportProcessor } from "@app/plugins/transport";
 
-import { send, map as bridgeMap, truncate } from "@app/src/plugins/transport/bridge";
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
-import delay from "@app/src/lib/delay";
+import { send, map as bridgeMap, truncate } from "@app/plugins/transport/bridge";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
+import delay from "@app/lib/delay";
 import winston = require( "winston" );
 
 function htmlEscape( str: string ) {

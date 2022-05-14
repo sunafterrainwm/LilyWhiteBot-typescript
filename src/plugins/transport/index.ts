@@ -4,15 +4,15 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport, PluginManager } from "@app/src/bot.type";
-import type { Context } from "@app/src/lib/handlers/Context";
+import type { PluginExport, PluginManager } from "@app/bot.type";
+import type { Context } from "@app/lib/handlers/Context";
 
-import * as bridge from "@app/src/plugins/transport/bridge";
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import * as bridge from "@app/plugins/transport/bridge";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
-import * as bridgeCommand from "@app/src/plugins/transport/command";
-import * as bridgeFile from "@app/src/plugins/transport/file";
-import * as bridgePaeeye from "@app/src/plugins/transport/paeeye";
+import * as bridgeCommand from "@app/plugins/transport/command";
+import * as bridgeFile from "@app/plugins/transport/file";
+import * as bridgePaeeye from "@app/plugins/transport/paeeye";
 
 export {
 	TransportAlias,
@@ -20,9 +20,9 @@ export {
 	TransportHooks,
 	TransportMap,
 	TransportProcessor
-} from "@app/src/plugins/transport/bridge";
-export { TransportCommand } from "@app/src/plugins/transport/command";
-export { TransportServemediaBase, TransportServemedia } from "@app/src/plugins/transport/file";
+} from "@app/plugins/transport/bridge";
+export { TransportCommand } from "@app/plugins/transport/command";
+export { TransportServemediaBase, TransportServemedia } from "@app/plugins/transport/file";
 
 export interface TransportBridge {
 	readonly BridgeMsg: typeof BridgeMsg;
@@ -293,7 +293,7 @@ export interface TransportConfig {
 	};
 }
 
-declare module "@app/src/bot.type" {
+declare module "@app/bot.type" {
 	interface PluginManagerPlugins {
 		transport?: TransportBridge;
 	}
@@ -303,7 +303,7 @@ declare module "@app/src/bot.type" {
 	}
 }
 
-declare module "@app/config/config.type" {
+declare module "@config/config.type" {
 	interface PluginConfigs {
 		transport: TransportConfig;
 	}
@@ -484,7 +484,7 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 
 	// 載入各用戶端的處理程式，並連接到 bridge 中
 	for ( const [ type, handler ] of pluginManager.handlers ) {
-		const processor: bridge.TransportProcessor = await import( `@app/src/plugins/transport/processors/${ type }` );
+		const processor: bridge.TransportProcessor = await import( `@app/plugins/transport/processors/${ type }` );
 		processor.init( handler, options );
 		bridge.addProcessor( type, processor );
 	}

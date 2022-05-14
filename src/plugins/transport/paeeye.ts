@@ -1,6 +1,6 @@
 import winston = require( "winston" );
 
-import type { TransportBridge, TransportConfig } from "@app/src/plugins/transport";
+import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 
 export function init( bridge: TransportBridge, cnf: TransportConfig ) {
 	bridge.addHook( "bridge.send", function ( msg ) {

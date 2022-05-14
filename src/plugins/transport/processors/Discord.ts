@@ -7,12 +7,12 @@ import LRU = require( "lru-cache" );
 import format = require( "string-format" );
 import winston = require( "winston" );
 
-import type { DiscordMessageHandler } from "@app/src/lib/handlers/DiscordMessageHandler";
-import type { TransportConfig, TransportProcessor } from "@app/src/plugins/transport";
+import type { DiscordMessageHandler } from "@app/lib/handlers/DiscordMessageHandler";
+import type { TransportConfig, TransportProcessor } from "@app/plugins/transport";
 
-import { send, truncate } from "@app/src/plugins/transport/bridge";
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
-import delay from "@app/src/lib/delay";
+import { send, truncate } from "@app/plugins/transport/bridge";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
+import delay from "@app/lib/delay";
 
 const userInfo = new LRU<string, Discord.User>( {
 	max: 500,

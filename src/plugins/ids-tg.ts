@@ -4,7 +4,7 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/src/bot.type";
+import type { PluginExport } from "@app/bot.type";
 
 function getOutPut( value: [ string | false, number ] ) {
 	return `${ value[ 0 ] || "User" } ID: "${ value[ 1 ] }"`;

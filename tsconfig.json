@@ -2,11 +2,20 @@
 	"compilerOptions": {
 		"target": "esnext",
 		"module": "commonjs",
-		"moduleResolution": "node", 
-		"baseUrl": "./src", 
+		"moduleResolution": "node",
+		"baseUrl": "./src",
 		"paths": {
 			"@app/*": [
-				"../*"
+				"./*"
+			],
+			"@package.json": [
+				"../package.json"
+			],
+			"@config/*": [
+				"../config/*"
+			],
+			"@plugins/*": [
+				"../plugins/*"
 			]
 		},
 		"typeRoots": [
@@ -26,6 +35,8 @@
 		"config/*.ts",
 		"src/*.ts",
 		"src/**/*.ts",
-		"typings/*.d.ts"
+		"typings/*.d.ts",
+		"plugins/*.ts",
+		"plugins/**/*.ts"
 	]
 }

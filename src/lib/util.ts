@@ -19,7 +19,7 @@ export function loadConfig( name: string ) {
 
 	// 优先读取 javascript/typescript 格式配置文件
 	try {
-		return require( `@app/config/${ name }` );
+		return require( `@config/${ name }` );
 	} catch {
 		if ( isFileExists( `${ name }.yml`, dir ) ) {
 			winston.warn( `* DEPRECATED: ${ name }.yml format is deprecated, please use typescript format instead.` );

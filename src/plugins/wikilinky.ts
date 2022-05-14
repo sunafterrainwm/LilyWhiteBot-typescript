@@ -18,11 +18,11 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/src/bot.type";
-import type { Context } from "@app/src/lib/handlers/Context";
-import type { TransportBridge } from "@app/src/plugins/transport";
+import type { PluginExport } from "@app/bot.type";
+import type { Context } from "@app/lib/handlers/Context";
+import type { TransportBridge } from "@app/plugins/transport";
 
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 interface WikilinkyConfig {
 	groups: Record<string, string | false> & {
@@ -38,7 +38,7 @@ interface WikilinkyConfig {
 	ignores?: string[];
 }
 
-declare module "@app/config/config.type" {
+declare module "@config/config.type" {
 	interface PluginConfigs {
 		wikilinky: WikilinkyConfig;
 	}

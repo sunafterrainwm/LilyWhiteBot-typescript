@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+// @ts-check
 const { exec } = require( "child_process" );
 
 /**

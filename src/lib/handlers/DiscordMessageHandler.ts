@@ -1,11 +1,11 @@
 import Discord = require( "discord.js" );
 import winston = require( "winston" );
 
-import { BaseEvents, MessageHandler } from "@app/src/lib/handlers/MessageHandler";
-import { Context, ContextExtra } from "@app/src/lib/handlers/Context";
-import { getFriendlySize } from "@app/src/lib/util";
+import { BaseEvents, MessageHandler } from "@app/lib/handlers/MessageHandler";
+import { Context, ContextExtra } from "@app/lib/handlers/Context";
+import { getFriendlySize } from "@app/lib/util";
 
-type DiscordConf = import( "@app/config/config.type" ).ConfigTS[ "Discord" ];
+type DiscordConf = import( "@config/config.type" ).ConfigTS[ "Discord" ];
 
 export interface DiscordEvents extends BaseEvents<Discord.Client, Discord.Message> {
 	"channel.text"( context: Context<Discord.Message> ): void;

@@ -2,8 +2,8 @@ import type { Telegraf as TelegrafClient, Context as TContext } from "telegraf";
 import type { Client as DiscordClient } from "discord.js";
 import type { Client as IRCClient } from "irc-upd";
 
-import type { Context, RawMsg } from "@app/src/lib/handlers/Context";
-import EventEmitter, { Events } from "@app/src/lib/eventemitter2";
+import type { Context, RawMsg } from "@app/lib/handlers/Context";
+import EventEmitter, { Events } from "@app/lib/eventemitter2";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Command<rawdata extends RawMsg = any> = ( context: Context<rawdata>, cmd: string, param: string ) => void;

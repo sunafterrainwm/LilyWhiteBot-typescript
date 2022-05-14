@@ -1,6 +1,6 @@
-import type { PluginManager } from "@app/src/bot.type";
-import { Context, ContextExtra, ContextOptin, RawMsg } from "@app/src/lib/handlers/Context";
-import type { MessageHandler } from "@app/src/lib/handlers/MessageHandler";
+import type { PluginManager } from "@app/bot.type";
+import { Context, ContextExtra, ContextOptin, RawMsg } from "@app/lib/handlers/Context";
+import type { MessageHandler } from "@app/lib/handlers/MessageHandler";
 
 let clientFullNames = {};
 

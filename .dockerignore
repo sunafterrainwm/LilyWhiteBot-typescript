@@ -21,9 +21,11 @@ node_modules
 .vscode
 
 # config
-/config/*
+config.*
+config/
 !/config/*.type.ts
-/data/
+data/
+plugins/
 
 # typescript
 /src/**/*.js

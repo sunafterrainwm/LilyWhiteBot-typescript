@@ -1,6 +1,10 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+// @ts-check
 const path = require( "path" );
 
+/**
+ * @param {string[]} paths
+ * @return {string}
+ */
 function getFullPath( ...paths ) {
 	return path.join( __dirname, ...paths );
 }
@@ -22,7 +26,7 @@ module.exports = function ( grunt ) {
 	grunt.task.registerTask( "built", function () {
 		const done = this.async();
 
-		const built = grunt.file.isFile( __dirname + "/src/main.js" ) && grunt.file.isFile( __dirname + "/config/config.js" );
+		const built = grunt.file.isFile( getFullPath( "src/main.js" ) ) && grunt.file.isFile( getFullPath( "config/config.js" ) );
 
 		if ( !built ) {
 			grunt.task.run( [ "default" ] );

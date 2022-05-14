@@ -3,7 +3,7 @@ import type { Context as TContext } from "telegraf";
 import type { Message as DMessage } from "discord.js";
 import type { Message } from "typegram";
 
-import type { MessageHandler } from "@app/src/lib/handlers/MessageHandler";
+import type { MessageHandler } from "@app/lib/handlers/MessageHandler";
 
 let msgId = 0;
 

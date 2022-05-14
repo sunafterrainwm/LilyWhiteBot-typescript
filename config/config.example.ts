@@ -1,4 +1,4 @@
-import { ConfigTS } from "@app/config/config.type";
+import { ConfigTS } from "@config/config.type";
 import path = require( "path" );
 
 /*

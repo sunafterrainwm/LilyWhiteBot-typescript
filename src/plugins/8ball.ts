@@ -6,10 +6,10 @@
 
 import winston = require( "winston" );
 
-import type { Context } from "@app/src/lib/handlers/Context";
-import type { PluginExport } from "@app/src/bot.type";
+import type { Context } from "@app/lib/handlers/Context";
+import type { PluginExport } from "@app/bot.type";
 
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 const eightballs = [ "As I see it, yes", "It is certain", "It is decidedly so", "Most likely",
 	"Outlook good", "Signs point to yes", "One would be wise to think so", "Naturally", "Without a doubt",

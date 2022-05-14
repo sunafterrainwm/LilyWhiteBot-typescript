@@ -11,10 +11,10 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/src/bot.type";
-import type { Context } from "@app/src/lib/handlers/Context";
+import type { PluginExport } from "@app/bot.type";
+import type { Context } from "@app/lib/handlers/Context";
 
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 const piaMap = new Map( [
 	[ "pia", "(╯°Д°)╯︵ ~~~~~┻━┻" ],

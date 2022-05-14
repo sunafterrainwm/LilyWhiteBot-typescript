@@ -4,11 +4,11 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/src/bot.type";
+import type { PluginExport } from "@app/bot.type";
 
-import { BridgeMsg } from "@app/src/plugins/transport/BridgeMsg";
+import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
-declare module "@app/config/config.type" {
+declare module "@config/config.type" {
 	interface PluginConfigs {
 		irccommand: {
 			/**

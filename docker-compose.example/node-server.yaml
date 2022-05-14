@@ -6,6 +6,7 @@ services:
     restart: always
     working_dir: /home/node/app
     volumes:
+      - lilywhitebot-plugins:/home/node/app/plugins
       - lilywhitebot-dir:/home/node/app
       - lilywhitebot-cache:/home/node/cache
     command: "npm run install-build-start"
@@ -20,6 +21,12 @@ services:
       - lilywhitebot-cache:/var/www/html
 
 volumes:
+  lilywhitebot-plugins:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./plugins
   lilywhitebot-dir:
     driver: local
     driver_opts:

@@ -3,11 +3,11 @@ import irc = require( "irc-upd" );
 import color = require( "irc-colors" );
 import winston = require( "winston" );
 
-import { BaseEvents, MessageHandler } from "@app/src/lib/handlers/MessageHandler";
-import { Context } from "@app/src/lib/handlers/Context";
-import delay from "@app/src/lib/delay";
+import { BaseEvents, MessageHandler } from "@app/lib/handlers/MessageHandler";
+import { Context } from "@app/lib/handlers/Context";
+import delay from "@app/lib/delay";
 
-type IRCConf = import( "@app/config/config.type" ).ConfigTS[ "IRC" ];
+type IRCConf = import( "@config/config.type" ).ConfigTS[ "IRC" ];
 
 export interface IRCEvents extends BaseEvents<irc.Client, irc.IMessage> {
 	"event.nick"( oldnick: string, newnick: string, channels: string[], message: irc.IMessage ): void;
