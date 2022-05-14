@@ -1,0 +1,34 @@
+version: "3"
+
+services:
+  lilywhitebot:
+    image: node:16
+    restart: always
+    working_dir: /home/node/app
+    volumes:
+      - lilywhitebot-dir:/home/node/app
+      - lilywhitebot-cache:/home/node/cache
+    command: "npm run install-build-start"
+
+  nginx:
+    # ...
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # 與上面保持一致
+      - lilywhitebot-cache:/var/www/html
+
+volumes:
+  lilywhitebot-dir:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./
+  lilywhitebot-cache:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ./cache

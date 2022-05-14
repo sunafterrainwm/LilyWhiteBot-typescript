@@ -1,0 +1,6 @@
+#!/bin/bash
+run="ts-node ./src/main.ts";
+if [ -f "./src/main.js" ]; then
+    run="node ./src/main.js";
+fi
+while true; do eval $run; done
