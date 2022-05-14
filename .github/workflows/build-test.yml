@@ -3,15 +3,16 @@ name: Build Test
 on:
   push:
     branches:
-      - typescript
+      - master
+      - develop
     tags:        
       - v**
   pull_request:
     branches:
-      - typescript
+      - master
   pull_request_review:
     branches:
-      - typescript
+      - master
 
 jobs:
   test:
