@@ -15,8 +15,6 @@ import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 
 import pkg = require( "@package.json" );
 
-const tmpDir = fs.mkdtempSync( "/tmp" );
-
 export interface TransportServemediaBase {
 	/**
 	 * 檔案處理方式
@@ -119,6 +117,8 @@ export type TransportServemedia = |
 
 let cnf: TransportConfig;
 let servemedia: TransportServemedia;
+
+const tmpDir = fs.mkdtempSync( "/tmp" );
 
 const USERAGENT = `LilyWhiteBot/${ pkg.version } (${ pkg.repository })`;
 
@@ -226,7 +226,7 @@ async function uploadToCache( file: File ) {
 	fs.unlink( tmpPath, function () {
 		// ignore
 	} );
-	const targetName = generateFileName( file.url || file.path, buf );
+	const targetName = generateFileName( file.id || file.url || file.path, buf );
 	const targetPath = path.join( servemedia.cachePath, targetName );
 	fs.writeFileSync( targetPath, buf );
 	return servemedia.serveUrl + targetName;
