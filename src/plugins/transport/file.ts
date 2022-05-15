@@ -2,6 +2,7 @@
  * 集中處理檔案：將檔案上傳到圖床，取得 URL 並儲存至 context 中
  */
 
+import { Buffer } from "buffer";
 import crypto = require( "crypto" );
 import fs = require( "fs" );
 import path = require( "path" );
@@ -126,18 +127,19 @@ const USERAGENT = `LilyWhiteBot/${ pkg.version } (${ pkg.repository })`;
  * 根据已有文件名生成新文件名
  *
  * @param {string} url
- * @param {string|Buffer} file 文件名 or 文件本身
+ * @param {string} name 文件名
+ * @param {string|Buffer} [file] 文件本身或是Telegram的辨識字串
  * @return {string} 新文件名
  */
-function generateFileName( url: string, file: string | Buffer ): string {
-	let extName = typeof file === "string" ? path.extname( file || "" ) : "";
+function generateFileName( url: string, name: string, file?: string | Buffer ): string {
+	let extName = file instanceof Buffer ? "" : path.extname( name || "" );
 	if ( extName === "" ) {
 		extName = path.extname( url || "" );
 	}
 	if ( extName === ".webp" ) {
 		extName = ".png";
 	}
-	return crypto.createHash( "md5" ).update( file || ( Math.random() ).toString() ).digest( "hex" ) + extName;
+	return crypto.createHash( "md5" ).update( file || name || ( Math.random() ).toString() ).digest( "hex" ) + extName;
 }
 
 /**
@@ -214,21 +216,36 @@ function pipeFileStream<P extends NodeJS.WritableStream>( file: File, pipe: P ) 
  * 儲存至本機快取
  */
 async function uploadToCache( file: File ) {
-	const tmpPath = path.join( tmpDir, generateFileName( file.url || file.path, file.id ) );
+	if ( file.uniqueId ) {
+		try {
+			const uniqueName = generateFileName( file.url || file.path, file.id, file.uniqueId );
+			if ( fs.existsSync( path.join( servemedia.cachePath, uniqueName ) ) ) {
+				return servemedia.serveUrl + uniqueName;
+			}
+		} catch {
+			// ignore
+		}
+	}
+	const tmpPath = path.join( tmpDir, generateFileName( file.url || file.path, file.id, file.uniqueId ) );
 	const writeStream = fs.createWriteStream( tmpPath )
 		.on( "error", function ( e ) {
 			throw e;
 		} );
 	await pipeFileStream( file, writeStream );
+
 	const buf = fs.readFileSync( tmpPath, {
 		encoding: "binary"
 	} ) as unknown as Buffer; // bug
 	fs.unlink( tmpPath, function () {
 		// ignore
 	} );
-	const targetName = generateFileName( file.id || file.url || file.path, buf );
+
+	const targetName = generateFileName( file.url || file.path, file.id, file.uniqueId || buf );
 	const targetPath = path.join( servemedia.cachePath, targetName );
-	fs.writeFileSync( targetPath, buf );
+	if ( !fs.existsSync( targetPath ) ) {
+		fs.writeFileSync( targetPath, buf );
+	}
+
 	return servemedia.serveUrl + targetName;
 }
 

@@ -392,6 +392,11 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		const file: File = {
 			client: "Telegram",
 			url: null,
+			type: type,
+			id: msg.file_id,
+			uniqueId: "Telegram-" + msg.file_unique_id,
+			size: msg.file_size,
+			mime_type: msg.mime_type,
 			async prepareFile() {
 				file.url = ( await that.getFileLink( msg.file_id ) ).href;
 			},
@@ -415,11 +420,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 					default:
 						return null;
 				}
-			},
-			type: type,
-			id: msg.file_id,
-			size: msg.file_size,
-			mime_type: msg.mime_type
+			}
 		};
 		context.extra.files = [ file ];
 	}
@@ -429,7 +430,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			let sz = 0;
 			for ( const p of message.photo ) {
 				if ( p.file_size > sz ) {
-					await this.#setFile( context, p, "photo" );
+					this.#setFile( context, p, "photo" );
 					context.text = `<photo: ${ p.width }x${ p.height }, ${ getFriendlySize( p.file_size ) }>`;
 					sz = p.file_size;
 				}
@@ -443,24 +444,24 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			return true;
 		} else if ( "sticker" in message ) {
 			context.text = `${ message.sticker.emoji }<Sticker>`;
-			await this.#setFile( context, message.sticker, "sticker" );
+			this.#setFile( context, message.sticker, "sticker" );
 			context.extra.isImage = true;
 			return true;
 		} else if ( "audio" in message ) {
 			context.text = `<Audio: ${ message.audio.duration }", ${ getFriendlySize( message.audio.file_size ) }>`;
-			await this.#setFile( context, message.audio, "audio" );
+			this.#setFile( context, message.audio, "audio" );
 			return true;
 		} else if ( "voice" in message ) {
 			context.text = `<Voice: ${ message.voice.duration }", ${ getFriendlySize( message.voice.file_size ) }>`;
-			await this.#setFile( context, message.voice, "voice" );
+			this.#setFile( context, message.voice, "voice" );
 			return true;
 		} else if ( "video" in message ) {
 			context.text = `<Video: ${ message.video.width }x${ message.video.height }, ${ message.video.duration }", ${ getFriendlySize( message.video.file_size ) }>`;
-			await this.#setFile( context, message.video, "video" );
+			this.#setFile( context, message.video, "video" );
 			return true;
 		} else if ( "document" in message ) {
 			context.text = `<File: ${ message.document.file_name }, ${ getFriendlySize( message.document.file_size ) }>`;
-			await this.#setFile( context, message.document, "document" );
+			this.#setFile( context, message.document, "document" );
 			return true;
 		} else if ( "contact" in message ) {
 			context.text = `<Contact: ${ message.contact.first_name }, ${ message.contact.phone_number }>`;

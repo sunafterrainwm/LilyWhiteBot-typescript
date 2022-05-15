@@ -29,6 +29,8 @@ export type File = {
 
 	id: string;
 
+	uniqueId?: string;
+
 	size?: number;
 
 	mime_type?: string;
