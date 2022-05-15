@@ -15,6 +15,8 @@ import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 
 import pkg = require( "@package.json" );
 
+const tmpDir = fs.mkdtempSync( "/tmp" );
+
 export interface TransportServemediaBase {
 	/**
 	 * 檔案處理方式
@@ -124,18 +126,18 @@ const USERAGENT = `LilyWhiteBot/${ pkg.version } (${ pkg.repository })`;
  * 根据已有文件名生成新文件名
  *
  * @param {string} url
- * @param {string} name 文件名
+ * @param {string|Buffer} file 文件名 or 文件本身
  * @return {string} 新文件名
  */
-function generateFileName( url: string, name: string ): string {
-	let extName = path.extname( name || "" );
+function generateFileName( url: string, file: string | Buffer ): string {
+	let extName = typeof file === "string" ? path.extname( file || "" ) : "";
 	if ( extName === "" ) {
 		extName = path.extname( url || "" );
 	}
 	if ( extName === ".webp" ) {
 		extName = ".png";
 	}
-	return crypto.createHash( "md5" ).update( name || ( Math.random() ).toString() ).digest( "hex" ) + extName;
+	return crypto.createHash( "md5" ).update( file || ( Math.random() ).toString() ).digest( "hex" ) + extName;
 }
 
 /**
@@ -212,13 +214,21 @@ function pipeFileStream<P extends NodeJS.WritableStream>( file: File, pipe: P ) 
  * 儲存至本機快取
  */
 async function uploadToCache( file: File ) {
-	const targetName = generateFileName( file.url || file.path, file.id );
-	const targetPath = path.join( servemedia.cachePath, targetName );
-	const writeStream = fs.createWriteStream( targetPath )
+	const tmpPath = path.join( tmpDir, generateFileName( file.url || file.path, file.id ) );
+	const writeStream = fs.createWriteStream( tmpPath )
 		.on( "error", function ( e ) {
 			throw e;
 		} );
 	await pipeFileStream( file, writeStream );
+	const buf = fs.readFileSync( tmpPath, {
+		encoding: "binary"
+	} ) as unknown as Buffer; // bug
+	fs.unlink( tmpPath, function () {
+		// ignore
+	} );
+	const targetName = generateFileName( file.url || file.path, buf );
+	const targetPath = path.join( servemedia.cachePath, targetName );
+	fs.writeFileSync( targetPath, buf );
 	return servemedia.serveUrl + targetName;
 }
 
