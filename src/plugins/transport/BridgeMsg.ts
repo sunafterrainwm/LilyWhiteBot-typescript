@@ -1,6 +1,5 @@
-import type { PluginManager } from "@app/bot.type";
 import { Context, ContextExtra, ContextOptin, RawMsg } from "@app/lib/handlers/Context";
-import type { MessageHandler } from "@app/lib/handlers/MessageHandler";
+import type { PluginManager } from "@app/bot.type";
 
 let clientFullNames = {};
 
@@ -123,15 +122,10 @@ export class BridgeMsg<R extends RawMsg = RawMsg> extends Context<R> implements 
 		}
 	}
 
-	public static getUIDFromContext( context: Context, id: number | string ) {
-		if ( !context.handler ) {
-			return null;
-		}
+	public static getUIDFromContext = Context.getUIDFromContext;
 
-		return `${ context.handler.type.toLowerCase() }/${ id }`;
-	}
-
-	public static getUIDFromHandler( handler: MessageHandler, id: number | string ) {
-		return `${ handler.type.toLowerCase() }/${ id }`;
-	}
+	public static getUIDFromHandler = Context.getUIDFromHandler;
 }
+
+export type IBridgeMsg<R extends RawMsg = RawMsg> = BridgeMsg<R>;
+export type IBridgeMsgStatic = typeof BridgeMsg;

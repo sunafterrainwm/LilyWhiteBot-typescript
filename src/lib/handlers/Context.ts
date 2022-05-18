@@ -200,4 +200,16 @@ export class Context<R extends RawMsg = RawMsg> implements ContextOptin<R> {
 	public get msgId() {
 		return this._msgId;
 	}
+
+	public static getUIDFromContext( context: Context, id: number | string ) {
+		if ( !context.handler ) {
+			return null;
+		}
+
+		return `${ context.handler.type.toLowerCase() }/${ id }`;
+	}
+
+	public static getUIDFromHandler( handler: MessageHandler, id: number | string ) {
+		return `${ handler.type.toLowerCase() }/${ id }`;
+	}
 }

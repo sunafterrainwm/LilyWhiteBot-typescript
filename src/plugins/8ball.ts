@@ -9,8 +9,6 @@ import winston = require( "winston" );
 import type { Context } from "@app/lib/handlers/Context";
 import type { PluginExport } from "@app/bot.type";
 
-import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
-
 const eightballs = [ "As I see it, yes", "It is certain", "It is decidedly so", "Most likely",
 	"Outlook good", "Signs point to yes", "One would be wise to think so", "Naturally", "Without a doubt",
 	"Yes", "Yes, definitely", "You may rely on it", "Reply hazy, try again", "Ask again later",
@@ -28,7 +26,7 @@ const eightball: PluginExport<"8ball"> = function ( pluginManager ) {
 		winston.debug( `[8ball.js] Msg #${ context.msgId } 8ball: ${ result }` );
 
 		if ( bridge && !context.isPrivate ) {
-			bridge.send( new BridgeMsg( context, {
+			bridge.send( new pluginManager.global.BridgeMsg( context, {
 				text: `8ball: ${ result }`,
 				isNotice: true
 			} ) );

@@ -17,12 +17,13 @@
  */
 
 import winston = require( "winston" );
+import { Context } from "@app/lib/handlers/Context";
 
 import type { PluginExport } from "@app/bot.type";
-import type { Context } from "@app/lib/handlers/Context";
 import type { TransportBridge } from "@app/plugins/transport";
+import type { IBridgeMsgStatic } from "@app/plugins/transport/BridgeMsg";
 
-import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
+let BridgeMsg: IBridgeMsgStatic;
 
 interface WikilinkyConfig {
 	groups: Record<string, string | false> & {
@@ -150,8 +151,8 @@ function linky( string: string, articlepath: string ) {
 
 function processlinky( context: Context, bridge?: TransportBridge ) {
 	try {
-		const from_uid = BridgeMsg.getUIDFromContext( context, context.from );
-		const to_uid = BridgeMsg.getUIDFromContext( context, context.to );
+		const from_uid = Context.getUIDFromContext( context, context.from );
+		const to_uid = Context.getUIDFromContext( context, context.to );
 
 		if ( ignores.includes( from_uid ) ) {
 			return;
@@ -179,9 +180,13 @@ function processlinky( context: Context, bridge?: TransportBridge ) {
 }
 
 const wikilinky: PluginExport<"wikilinky"> = function ( pluginManager, options ) {
-	const bridge = pluginManager.plugins?.transport;
 	if ( !options ) {
 		return;
+	}
+
+	const bridge = pluginManager.plugins?.transport;
+	if ( bridge ) {
+		BridgeMsg = pluginManager.global.BridgeMsg;
 	}
 
 	Object.assign( map, options.groups );

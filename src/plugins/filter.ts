@@ -19,7 +19,7 @@
  * }
  */
 import type { PluginExport } from "@app/bot.type";
-import type { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
+import type { IBridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 type RegExpAble = RegExp | string;
 
@@ -115,7 +115,7 @@ const filter: PluginExport<"filter"> = function ( pluginManager, options ) {
 	}
 
 	function process( event: "send" | "receive" ) {
-		return function ( msg: BridgeMsg ) {
+		return function ( msg: IBridgeMsg ) {
 			const filters = msgfilters[ event ];
 
 			let rejects = false;

@@ -8,7 +8,9 @@ import type { PluginExport } from "@app/bot.type";
 import type { Context } from "@app/lib/handlers/Context";
 import type { IRCMessageHandler } from "@app/lib/handlers/IRCMessageHandler";
 
-import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
+import type { IBridgeMsgStatic } from "@app/plugins/transport/BridgeMsg";
+
+let BridgeMsg: IBridgeMsgStatic;
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
@@ -120,6 +122,8 @@ const ircquery: PluginExport<"ircquery"> = function ( pluginManager, options ) {
 	if ( !bridge || !pluginManager.handlers.has( "IRC" ) ) {
 		return;
 	}
+
+	BridgeMsg = pluginManager.global.BridgeMsg;
 
 	const prefix = options.prefix || "";
 	icHandler = pluginManager.handlers.get( "IRC" );

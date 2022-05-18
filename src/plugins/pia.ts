@@ -14,8 +14,6 @@ import winston = require( "winston" );
 import type { PluginExport } from "@app/bot.type";
 import type { Context } from "@app/lib/handlers/Context";
 
-import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
-
 const piaMap = new Map( [
 	[ "pia", "(╯°Д°)╯︵ ~~~~~┻━┻" ],
 	[ "mua", "o(*￣3￣)o" ],
@@ -30,6 +28,7 @@ const piaMap = new Map( [
 
 const transport: PluginExport<"pia"> = function ( pluginManager ) {
 	const bridge = pluginManager.plugins.transport;
+	const BridgeMsg = pluginManager.global.BridgeMsg;
 
 	async function pia( context: Context ) {
 		const command = context.command;
