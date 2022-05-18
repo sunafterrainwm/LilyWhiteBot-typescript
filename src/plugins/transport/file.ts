@@ -5,12 +5,14 @@
 import { Buffer } from "buffer";
 import crypto = require( "crypto" );
 import fs = require( "fs" );
+import os = require( "os" );
 import path = require( "path" );
 import request = require( "request" );
 import sharp = require( "sharp" );
 import stream = require( "stream" );
 import winston = require( "winston" );
 
+import "@app/lib/fs-sync-binding";
 import type { File, UploadFile } from "@app/lib/handlers/Context";
 import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 
@@ -28,6 +30,13 @@ export interface TransportServemediaBase {
 	 * 快取存放位置
 	 */
 	cachePath?: string;
+
+	/**
+	 * type為self時有效
+	 *
+	 * 比對檔案的 sha256 值是否相同，不儲存重複的檔案
+	 */
+	checkIsSame?: boolean;
 
 	/**
 	 * type為self時有效
@@ -119,7 +128,7 @@ export type TransportServemedia = |
 let cnf: TransportConfig;
 let servemedia: TransportServemedia;
 
-const tmpDir = fs.mkdtempSync( "/tmp" );
+const tmpDir = fs.mkdtempSync( path.join( os.tmpdir(), "LilyWhiteBot-" ) );
 
 const USERAGENT = `LilyWhiteBot/${ pkg.version } (${ pkg.repository })`;
 
@@ -128,18 +137,17 @@ const USERAGENT = `LilyWhiteBot/${ pkg.version } (${ pkg.repository })`;
  *
  * @param {string} url
  * @param {string} name 文件名
- * @param {string|Buffer} [file] 文件本身或是Telegram的辨識字串
  * @return {string} 新文件名
  */
-function generateFileName( url: string, name: string, file?: string | Buffer ): string {
-	let extName = file instanceof Buffer ? "" : path.extname( name || "" );
+function generateFileName( url: string, name: string ): string {
+	let extName = path.extname( name || "" );
 	if ( extName === "" ) {
 		extName = path.extname( url || "" );
 	}
 	if ( extName === ".webp" ) {
 		extName = ".png";
 	}
-	return crypto.createHash( "md5" ).update( file || name || ( Math.random() ).toString() ).digest( "hex" ) + extName;
+	return crypto.createHash( "md5" ).update( name || ( Math.random() ).toString() ).digest( "hex" ) + extName;
 }
 
 /**
@@ -212,13 +220,35 @@ function pipeFileStream<P extends NodeJS.WritableStream>( file: File, pipe: P ) 
 	} );
 }
 
+/**
+ * 快取當前文件
+ *
+ * @param {string} tmpPath 快取文件名
+ * @return {string} 最終擋名
+ */
+function cacheFile( tmpPath: string ): string {
+	let resultName = path.basename( tmpPath );
+	if ( !servemedia.checkIsSame ) {
+		const buf = fs.readFileSync( tmpPath );
+		const shaName = crypto.createHash( "sha256" ).update( buf ).digest( "hex" ) + path.extname( tmpPath );
+		const shaPath = path.join( servemedia.cachePath, shaName );
+		if ( !fs.existsSync( shaPath ) ) {
+			fs.copyFileSync( tmpPath, shaPath );
+		}
+		resultName = shaName;
+	} else {
+		fs.copyFileSync( tmpPath, path.join( servemedia.cachePath, resultName ) );
+	}
+	fs.sync.rm( tmpPath );
+	return resultName;
+}
 /*
  * 儲存至本機快取
  */
 async function uploadToCache( file: File ) {
 	if ( file.uniqueId ) {
 		try {
-			const uniqueName = generateFileName( file.url || file.path, file.id, file.uniqueId );
+			const uniqueName = generateFileName( file.url || file.path, file.id );
 			if ( fs.existsSync( path.join( servemedia.cachePath, uniqueName ) ) ) {
 				return servemedia.serveUrl + uniqueName;
 			}
@@ -226,27 +256,14 @@ async function uploadToCache( file: File ) {
 			// ignore
 		}
 	}
-	const tmpPath = path.join( tmpDir, generateFileName( file.url || file.path, file.id, file.uniqueId ) );
+	const tmpPath = path.join( tmpDir, generateFileName( file.url || file.path, file.id ) );
 	const writeStream = fs.createWriteStream( tmpPath )
 		.on( "error", function ( e ) {
 			throw e;
 		} );
 	await pipeFileStream( file, writeStream );
 
-	const buf = fs.readFileSync( tmpPath, {
-		encoding: "binary"
-	} ) as unknown as Buffer; // bug
-	fs.unlink( tmpPath, function () {
-		// ignore
-	} );
-
-	const targetName = generateFileName( file.url || file.path, file.id, file.uniqueId || buf );
-	const targetPath = path.join( servemedia.cachePath, targetName );
-	if ( !fs.existsSync( targetPath ) ) {
-		fs.writeFileSync( targetPath, buf );
-	}
-
-	return servemedia.serveUrl + targetName;
+	return servemedia.serveUrl + cacheFile( tmpPath );
 }
 
 /*
@@ -434,6 +451,10 @@ export function init( bridge: TransportBridge, _cnf: TransportConfig ) {
 	servemedia = cnf.options.servemedia || {
 		type: "none"
 	};
+
+	fs.sync.stat( servemedia.cachePath ).catch( function ( err ) {
+		winston.warn( `Access path "${ servemedia.cachePath }" fail, servemedia would be turned to off:`, err );
+	} );
 
 	bridge.addHook( "bridge.send", async function ( msg ) {
 		// 上传文件
