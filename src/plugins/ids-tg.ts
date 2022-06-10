@@ -40,7 +40,7 @@ const ids_tg: PluginExport<"ids-tg"> = function ( pluginManager ) {
 			} );
 		} );
 
-		tg.aliasCommand( "thisgroupid", "groupid" );
+		tg.aliasCommand( "groupid", "thisgroupid" );
 
 		tg.addCommand( "userid", function ( context ) {
 			const rawdata = context._rawdata;

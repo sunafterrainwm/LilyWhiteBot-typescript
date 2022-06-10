@@ -172,6 +172,7 @@ import * as uidParser from "@app/lib/uidParser";
 	for ( const plugin in config.plugins ) {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		if ( !( config.plugins[ plugin as keyof PluginConfigs ]as any )?.enable ) {
+			winston.error( `Skip plugin: ${ plugin }` );
 			continue;
 		}
 		hasLoadPlugin = true;
