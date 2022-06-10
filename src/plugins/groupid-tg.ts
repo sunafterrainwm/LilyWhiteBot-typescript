@@ -10,7 +10,7 @@ import ids_tg from "@app/plugins/ids-tg";
 
 const groupid_tg: PluginExport<"groupid-tg"> = function ( pluginManager ) {
 	winston.warn( "[groupid-tg] plugin \"groupid-tg\" is deprecated, use \"ids-tg\" instead." );
-	return ids_tg( pluginManager );
+	return ids_tg( pluginManager, {} );
 };
 
 export default groupid_tg;

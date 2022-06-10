@@ -411,7 +411,14 @@ export function init( bridge: TransportBridge, _cnf: TransportConfig ) {
 	bridge.addHook( "bridge.send", async function ( msg ) {
 		// 上传文件
 		// p4: dont bother with files from somewhere without bridges in config
-		if ( msg.extra.clients > 1 && msg.extra.files && servemedia.type && servemedia.type !== "none" ) {
+		if (
+			msg.extra.clients > 1 &&
+			msg.extra.files &&
+			servemedia.type && servemedia.type !== "none"
+		) {
+			if ( !( msg.extra.uploads && msg.extra.uploads.length ) ) {
+				return;
+			}
 			const promises: Promise<UploadFile>[] = [];
 			const fileCount = msg.extra.files.length;
 

@@ -24,12 +24,12 @@
 		],
 		"resolveJsonModule": true,
 		"allowJs": true,
-		"checkJs": true,
 		"allowSyntheticDefaultImports": true,
 		"forceConsistentCasingInFileNames": true,
 		"strict": true,
 		"noImplicitAny": false,
-		"strictNullChecks": false
+		"strictNullChecks": false,
+		"skipLibCheck": true
 	},
 	"include": [
 		"config/*.ts",

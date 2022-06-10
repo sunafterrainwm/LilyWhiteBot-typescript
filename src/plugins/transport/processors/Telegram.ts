@@ -2,14 +2,56 @@ import path = require( "path" );
 import format = require( "string-format" );
 import { Context as TContext } from "telegraf";
 import * as TT from "typegram";
+import winston = require( "winston" );
 
 import type { TelegramMessageHandler } from "@app/lib/handlers/TelegramMessageHandler";
 import type { TransportConfig, TransportProcessor } from "@app/plugins/transport";
 
+import { Context } from "@app/lib/handlers/Context";
+import { parseUID } from "@app/lib/uidParser";
 import { send, map as bridgeMap, truncate } from "@app/plugins/transport/bridge";
 import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 import delay from "@app/lib/delay";
-import winston = require( "winston" );
+
+export interface TransportTelegramOptions {
+	notify: {
+		join?: boolean;
+		leave?: boolean;
+		pin?: boolean;
+	};
+
+	/**
+	 * 互聯頻道的內容
+	 * 不接受對頻道的雙向轉發，原因是暫無方法檢測監聽到的頻道訊息是不是來自自己
+	 *
+	 * * out             -> 傳出頻道內容，如果無此選項此 plugin 不會監聽頻道發布訊息
+	 * * out,must-review -> 同時檢查頻道是否有互聯出去，有的話進行單向不轉發防止無限迴圈
+	 * * in              -> 傳入內容，僅做為標記供日後 tgApi 變更時使用
+	 * * in,must-review  -> 同上
+	 */
+	channelTransport?: Record<string, "out" | "out,must-review" | "in" | "in,must-review">;
+
+	/**
+	 * 是否轉傳頻道內容
+	 */
+	forwardChannels?: boolean;
+
+	/**
+	 * 如果有人使用 Telegram 命令亦轉發到其他群組（但由於 Telegram 設定的原因，Bot 無法看到命令結果）
+	 */
+	forwardCommands: boolean;
+
+	/**
+	 * 下面是其他群裡面互連機器人的名稱。在轉發這些機器人的訊息時，程式會嘗試從訊息中提取出真正的暱稱，
+	 * 而不是顯示機器人的名稱。參數「[]」、「<>」指真正發訊息者暱稱兩邊的括號樣式，目前只支援這兩種括號。
+	 */
+	forwardBots: Record<string, "[]" | "<>">;
+}
+
+let config: TransportConfig;
+let options: Partial<TransportTelegramOptions>;
+let forwardBots: Record<string, "[]" | "<>" | "self"> = {};
+let tgHandler: TelegramMessageHandler;
 
 function htmlEscape( str: string ) {
 	return str
@@ -17,10 +59,6 @@ function htmlEscape( str: string ) {
 		.replace( /</gu, "&lt;" )
 		.replace( />/gu, "&gt;" );
 }
-
-let config: TransportConfig;
-let forwardBots: Record<string, "[]" | "<>" | "self"> = {};
-let tgHandler: TelegramMessageHandler;
 
 // 如果是互聯機器人，那麼提取真實的使用者名稱和訊息內容
 function parseForwardBot( username: string, text: string ) {
@@ -41,7 +79,7 @@ function parseForwardBot( username: string, text: string ) {
 
 function init( _tgHandler: TelegramMessageHandler, _config: TransportConfig ) {
 	config = _config;
-	const options: Partial<TransportConfig[ "options" ][ "Telegram" ]> = config.options.Telegram || {};
+	options = config.options.Telegram || {};
 	forwardBots = options.forwardBots || {};
 	tgHandler = _tgHandler;
 
@@ -182,11 +220,14 @@ function init( _tgHandler: TelegramMessageHandler, _config: TransportConfig ) {
 
 	if ( options.channelTransport && Object.keys( options.channelTransport ).length ) {
 		for ( const channel in options.channelTransport ) {
-			const key = BridgeMsg.parseUID( channel ).uid ?
-				BridgeMsg.parseUID( channel ).uid :
-				BridgeMsg.getUIDFromHandler( tgHandler, channel );
+			const key = parseUID( channel ).uid ?
+				parseUID( channel ).uid :
+				Context.getUIDFromHandler( tgHandler, channel );
 
-			if ( !( key in bridgeMap ) ) {
+			if ( !key.match( /\/-?\d+$/ ) ) { // telegram/-123456789
+				winston.warn( `[transport/processor/TG] Fail to mark channel "${ key }": You must provide channel id instead of provide channel username.` );
+				continue;
+			} else if ( !( key in bridgeMap ) ) {
 				// eslint-disable-next-line max-len
 				// winston.warn( `[transport/processor/TG] Fail to bind channelTransport on "${ channel }": key is undefined.` );
 				continue;
@@ -206,103 +247,138 @@ function init( _tgHandler: TelegramMessageHandler, _config: TransportConfig ) {
 						}
 					}
 				}
-				listenChannel.push( +BridgeMsg.parseUID( key ).id );
+				listenChannel.push( +parseUID( key ).id );
+			} else if ( opt.includes( "in" ) ) {
+				if ( opt.includes( "must-review" ) ) {
+					for ( const c2 in bridgeMap[ key ] ) {
+						try {
+							bridgeMap[ key ][ c2 ].disabled = true;
+						} catch ( e ) {
+							winston.warn( `[transport/processor/TG] Fail to disable transport "${ key }" -> "${ c2 }": ${ e }` );
+						}
+					}
+				}
 			}
 		}
 	}
 
-	tgHandler.on( "channel.post", async function ( channel, msg, ctx ) {
-		if ( !listenChannel.includes( channel.id ) ) {
-			return;
-		}
+	if ( listenChannel.length ) {
+		listenChannel.forEach( function ( cid ) {
+			tgHandler.getChat( cid )
+				.then( function ( channel ) {
+					if ( channel.type !== "channel" ) {
+						listenChannel.splice( listenChannel.indexOf( cid ), 1 );
+						winston.warn( `[transport/processor/TG] Unmark "${ cid }" as a channel: channel.type is ${ channel.type }.` );
+						return;
+					}
 
-		const nick = "author_signature" in msg ? msg.author_signature : "Chaanel";
-
-		const context: BridgeMsg<TContext> = new BridgeMsg<TContext>( {
-			from: ctx.chat.id,
-			to: ctx.chat.id,
-			nick: nick,
-			text: "",
-			isPrivate: false,
-			extra: {
-				username: "username" in msg.chat ? msg.chat.username : ""
-			},
-			handler: tgHandler,
-			_rawdata: ctx
+					if ( channel.linked_chat_id ) {
+						const cUid = Context.getUIDFromHandler( tgHandler, cid );
+						const gUid = Context.getUIDFromHandler( tgHandler, channel.linked_chat_id );
+						if ( !bridgeMap[ cUid ]?.[ gUid ] ) {
+							return;
+						}
+						winston.debug( `[transport/processor/TG] disable transport "${ cUid }" -> "${ gUid }" (linked chat).` );
+						bridgeMap[ cUid ][ gUid ].disabled = true;
+					}
+				} )
+				.catch( function ( err ) {
+					listenChannel.splice( listenChannel.indexOf( cid ), 1 );
+					winston.warn( `[transport/processor/TG] Unmark "${ cid }" as a channel: Fail to fetch channel: ${ err }` );
+				} );
 		} );
 
-		if ( "reply_to_message" in ctx.message ) {
-			const reply: TT.ReplyMessage = ctx.message.reply_to_message;
-			context.extra.reply = {
-				nick: tgHandler.getNick( reply.from ),
-				username: reply.from.username,
-				message: tgHandler.convertToText( reply ),
-				isText: "text" in reply && !!reply.text,
-				id: String( reply.from.id ),
-				_rawdata: null
-			};
-
-			if (
-				reply.from.id === 777000 &&
-				"forward_from_chat" in reply &&
-				reply.forward_from_chat.type === "channel"
-			) {
-				context.extra.reply.nick = `Channel ${ reply.forward_from_chat.title }`;
-				context.extra.reply.username = reply.forward_from_chat.username;
-				context.extra.reply.id = reply.forward_from_chat.id;
-			}
-		} else if ( "forward_from" in ctx.message ) {
-			const fwd: TT.User = ctx.message.forward_from;
-			const fwdChat: TT.Chat = ctx.message.forward_from_chat;
-			if (
-				fwd.id === 777000 &&
-				fwdChat &&
-				fwdChat.type === "channel"
-			) {
-				context.extra.forward = {
-					nick: `Channel ${ fwdChat.title }`,
-					username: fwdChat.username
-				};
-			} else {
-				context.extra.forward = {
-					nick: tgHandler.getNick( fwd ),
-					username: fwd.username
-				};
-			}
-		}
-
-		if ( "text" in ctx.message ) {
-			if ( !context.text ) {
-				context.text = ctx.message.text;
-			}
-		} else {
-			const message: TT.Message = ctx.message;
-
-			if ( !await tgHandler.parseMedia( context, message ) ) {
-				if ( "pinned_message" in message ) {
-					if ( options.notify.pin ) {
-						send( new BridgeMsg( {
-							from: msg.chat.id,
-							to: msg.chat.id,
-							nick: "author_signature" in msg ? msg.author_signature : "Chaanel",
-							text: `${ nick } pinned: ${ tgHandler.convertToText( message.pinned_message ).replace( /\n/gu, " " ) }`,
-							isNotice: true,
-							handler: tgHandler,
-							_rawdata: ctx
-						} ) ).catch( function () {
-							// ignore
-						} );
-					}
-				}
-
+		tgHandler.on( "channel.post", async function ( channel, msg, ctx ) {
+			if ( !listenChannel.includes( channel.id ) ) {
 				return;
+			}
+
+			const nick = "author_signature" in msg ? msg.author_signature : "Channel";
+
+			const context: BridgeMsg<TContext> = new BridgeMsg<TContext>( {
+				from: ctx.chat.id,
+				to: ctx.chat.id,
+				nick: nick,
+				text: "",
+				isPrivate: false,
+				extra: {
+					username: "username" in msg.chat ? msg.chat.username : ""
+				},
+				handler: tgHandler,
+				_rawdata: ctx
+			} );
+
+			if ( "reply_to_message" in msg ) {
+				const reply: TT.ReplyMessage = msg.reply_to_message;
+				context.extra.reply = {
+					nick: tgHandler.getNick( reply.from ),
+					username: reply.from.username,
+					message: tgHandler.convertToText( reply ),
+					isText: "text" in reply && !!reply.text,
+					id: String( reply.from.id ),
+					_rawdata: null
+				};
+
+				if (
+					reply.from.id === 777000 &&
+					"forward_from_chat" in reply &&
+					reply.forward_from_chat.type === "channel"
+				) {
+					context.extra.reply.nick = `Channel ${ reply.forward_from_chat.title }`;
+					context.extra.reply.username = reply.forward_from_chat.username;
+					context.extra.reply.id = reply.forward_from_chat.id;
+				}
+			} else if ( "forward_from" in msg ) {
+				const fwd: TT.User = msg.forward_from;
+				const fwdChat: TT.Chat = msg.forward_from_chat;
+				if (
+					fwd.id === 777000 &&
+					fwdChat &&
+					fwdChat.type === "channel"
+				) {
+					context.extra.forward = {
+						nick: `Channel ${ fwdChat.title }`,
+						username: fwdChat.username
+					};
+				} else {
+					context.extra.forward = {
+						nick: tgHandler.getNick( fwd ),
+						username: fwd.username
+					};
+				}
+			}
+
+			if ( "text" in msg ) {
+				if ( !context.text ) {
+					context.text = msg.text;
+				}
+			} else {
+				if ( !await tgHandler.parseMedia( context, msg ) ) {
+					if ( "pinned_message" in msg ) {
+						if ( options.notify.pin ) {
+							send( new BridgeMsg( {
+								from: msg.chat.id,
+								to: msg.chat.id,
+								nick: nick,
+								text: `${ nick } pinned: ${ tgHandler.convertToText( msg.pinned_message ).replace( /\n/gu, " " ) }`,
+								isNotice: true,
+								handler: tgHandler,
+								_rawdata: ctx
+							} ) ).catch( function () {
+								// ignore
+							} );
+						}
+					}
+
+					return;
+				}
 			}
 
 			send( context ).catch( function () {
 				// ignore
 			} );
-		}
-	} );
+		} );
+	}
 }
 
 // 收到了來自其他群組的訊息
@@ -321,17 +397,18 @@ async function receive( msg: BridgeMsg ) {
 
 	if ( msg.extra.reply ) {
 		const reply = msg.extra.reply;
-		meta.reply_nick = reply.nick;
-		meta.reply_user = reply.username;
+		meta.reply_nick = htmlEscape( reply.nick );
+		meta.reply_user = htmlEscape( reply.username );
 		if ( reply.isText ) {
 			meta.reply_text = truncate( reply.message );
 		} else {
 			meta.reply_text = reply.message;
 		}
+		meta.reply_text = htmlEscape( reply.message );
 	}
 	if ( msg.extra.forward ) {
-		meta.forward_nick = msg.extra.forward.nick;
-		meta.forward_user = msg.extra.forward.username;
+		meta.forward_nick = htmlEscape( msg.extra.forward.nick );
+		meta.forward_user = htmlEscape( msg.extra.forward.username );
 	}
 
 	// 自定义消息样式
@@ -378,7 +455,7 @@ async function receive( msg: BridgeMsg ) {
 			if ( upload.type === "audio" ) {
 				await tgHandler.sendAudio( msg.to, upload.url, replyOption );
 			} else if ( upload.type === "photo" ) {
-				if ( path.extname( upload.url ) === ".gif" ) {
+				if ( path.extname( upload.url ) === ".gif" || path.extname( upload.url ) === ".mp4" ) {
 					await tgHandler.sendAnimation( msg.to, upload.url, replyOption );
 				} else {
 					await tgHandler.sendPhoto( msg.to, upload.url, replyOption );
@@ -391,7 +468,7 @@ async function receive( msg: BridgeMsg ) {
 	}
 }
 
-export = {
+export default {
 	init,
 	receive
 } as TransportProcessor<"Telegram">;

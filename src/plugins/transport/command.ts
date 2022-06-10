@@ -20,6 +20,7 @@ import winston = require( "winston" );
 import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 import type { TransportHook, TransportHooks } from "@app/plugins/transport/bridge";
 
+import { clientFullNames, parseUID } from "@app/lib/uidParser";
 import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 export type TransportCommand = TransportHook<[BridgeMsg], void>;
@@ -34,18 +35,12 @@ export type CommandTS = {
 
 const commands: Map<string, CommandTS> = new Map();
 
-const clientFullNames = {};
 let handlers: TransportBridge[ "handlers" ];
 let bridge: TransportBridge;
 
 export function init( _bridge: TransportBridge, _cnf: TransportConfig ) {
 	bridge = _bridge;
 	handlers = bridge.handlers;
-
-	for ( const [ type, handler ] of handlers ) {
-		clientFullNames[ handler.id.toLowerCase() ] = type;
-		clientFullNames[ type.toLowerCase() ] = type;
-	}
 
 	bridge.addHook( "bridge.send", hook( "send" ) );
 	bridge.addHook( "bridge.receive", hook( "receive" ) );
@@ -91,7 +86,7 @@ export function addCommand(
 	if ( !commands.has( command ) ) {
 		for ( const client of clients ) {
 			if ( clientFullNames[ client ] && handlers.has( clientFullNames[ client ] ) ) {
-				handlers.get( clientFullNames[ client ] as string ).addCommand( command );
+				handlers.get( clientFullNames[ client ] ).addCommand( command );
 			}
 		}
 	}
@@ -106,14 +101,14 @@ export function addCommand(
 	if ( opts.enables ) {
 		options.enables = [];
 		for ( const group of opts.enables ) {
-			const client = BridgeMsg.parseUID( group );
+			const client = parseUID( group );
 			if ( client.uid ) {
 				options.enables.push( client.uid );
 			}
 		}
 	} else if ( opts.disables ) {
 		for ( const group of opts.disables ) {
-			const client = BridgeMsg.parseUID( group );
+			const client = parseUID( group );
 			if ( client.uid ) {
 				options.disables.push( client.uid );
 			}

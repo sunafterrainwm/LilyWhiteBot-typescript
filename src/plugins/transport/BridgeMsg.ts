@@ -1,7 +1,5 @@
 import { Context, ContextExtra, ContextOptin, RawMsg } from "@app/lib/handlers/Context";
-import type { PluginManager } from "@app/bot.type";
-
-let clientFullNames = {};
+import { parseUID } from "@app/lib/uidParser";
 
 export interface BridgeMsgOptin<rawdata extends RawMsg> extends ContextOptin<rawdata> {
 	plainText?: boolean;
@@ -35,7 +33,7 @@ export class BridgeMsg<R extends RawMsg = RawMsg> extends Context<R> implements 
 		return this._from_uid;
 	}
 	public set from_uid( u: string ) {
-		const { client, id, uid } = BridgeMsg.parseUID( u );
+		const { client, id, uid } = parseUID( u );
 		this._from = id;
 		this._from_uid = uid;
 		this._from_client = client;
@@ -46,7 +44,7 @@ export class BridgeMsg<R extends RawMsg = RawMsg> extends Context<R> implements 
 		return this._to_uid;
 	}
 	public set to_uid( u: string ) {
-		const { client, id, uid } = BridgeMsg.parseUID( u );
+		const { client, id, uid } = parseUID( u );
 		this._to = id;
 		this._to_uid = uid;
 		this._to_client = client;
@@ -93,38 +91,6 @@ export class BridgeMsg<R extends RawMsg = RawMsg> extends Context<R> implements 
 			this.extra.isNotice = !!that.isNotice;
 		}
 	}
-
-	public static parseUID( u: string ) {
-		let client: string = null, id: string = null, uid: string = null;
-		if ( u ) {
-			const s = u.toString();
-			const i = s.indexOf( "/" );
-
-			if ( i !== -1 ) {
-				client = s.slice( 0, Math.max( 0, i ) ).toLowerCase();
-				if ( clientFullNames[ client ] ) {
-					client = clientFullNames[ client ];
-				}
-
-				id = s.slice( i + 1 ).toLowerCase();
-				uid = `${ client.toLowerCase() }/${ id }`;
-			}
-		}
-		return { client, id, uid };
-	}
-
-	public static setHandlers( handlers: PluginManager[ "handlers" ] ) {
-		// 取得用戶端簡稱所對應的全稱
-		clientFullNames = {};
-		for ( const [ type, handler ] of handlers ) {
-			clientFullNames[ handler.id.toLowerCase() ] = type;
-			clientFullNames[ type.toLowerCase() ] = type;
-		}
-	}
-
-	public static getUIDFromContext = Context.getUIDFromContext;
-
-	public static getUIDFromHandler = Context.getUIDFromHandler;
 }
 
 export type IBridgeMsg<R extends RawMsg = RawMsg> = BridgeMsg<R>;

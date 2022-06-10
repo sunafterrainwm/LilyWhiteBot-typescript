@@ -9,23 +9,124 @@ import format = require( "string-format" );
 import type { IMessage } from "irc-upd";
 
 import type { IRCMessageHandler } from "@app/lib/handlers/IRCMessageHandler";
-import type { TransportConfig, TransportProcessor } from "@app/plugins/transport";
+import type { TransportConfig, TransportMessageStyle, TransportProcessor } from "@app/plugins/transport";
 
+import { parseUID } from "@app/lib/uidParser";
 import { send, truncate, map as bridgeMap } from "@app/plugins/transport/bridge";
 import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
+export type IRCColor = "white" | "black" | "navy" | "green" | "red" | "brown" | "purple" | "olive" |
+	"yellow" | "lightgreen" | "teal" | "cyan" | "blue" | "pink" | "gray" | "silver";
+
+export interface TransportIRCOptions {
+	notify: {
+		/**
+		 * 有人進入頻道是否在其他群發出提醒
+		 */
+		join?: boolean;
+
+		/**
+		 * 有人更名的話是否在其他群組發出提醒，可取
+		 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
+		 * 「"none"」、「false」（不提醒）
+		 */
+		rename?: boolean | "all" | "onlyactive" | "none";
+
+		/**
+		 * 有人離開頻道的話是否在其他群組提醒，可取
+		 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
+		 * 「"none"」、「false」（不提醒）
+		 */
+		leave?: boolean | "all" | "onlyactive" | "none";
+
+		/**
+		 * 如果 leave 為 onlyactive 的話：最後一次說話後多長時間內離開才會提醒
+		 */
+		timeBeforeLeave?: number;
+
+		/**
+		 * 頻道更換 Topic 時是否提醒
+		 */
+		topic?: boolean;
+	};
+
+	/**
+	 * 這裡可以設定機器人在 IRC 頻道中使用顏色。在啟用顏色功能之前，IRC 頻道的管理員需要解除頻道的 +c 模式，即
+	 *   /msg ChanServ SET #頻道 MLOCK -c
+	 *
+	 *   轉發機器人的訊息有以下三種格式：
+	 *   <T> [nick] message
+	 *   <T> [nick] Re replyto 「repliedmessage」: message
+	 *   <T> [nick] Fwd fwdfrom: message
+	 *
+	 *   （兩群互聯不會出現用於標識軟體的「<T>」）
+	 *
+	 *   可用顏色：white、black、navy、green、red、brown、purple、
+	 *   olive、yellow、lightgreen、teal、cyan、blue、pink、gray、silver
+	 */
+	colorize: {
+		/**
+		 * 是否允許在 IRC 頻道中使用顏色
+		 */
+		enabled: boolean;
+
+		/**
+		 * < 整行通知的顏色 >
+		 */
+		broadcast: IRCColor;
+
+		/**
+		 * 用於標記使用者端「<T>」的顏色
+		 */
+		client: IRCColor;
+
+		/**
+		 * nick 的顏色。除標準顏色外，亦可設為 colorful
+		 */
+		nick: IRCColor | "colorful";
+
+		/**
+		 * Re replyto 的顏色
+		 */
+		replyto: IRCColor;
+
+		/**
+		 * nick 的顏色。除標準顏色外，亦可設為 colorful
+		 */
+		repliedmessage: IRCColor;
+
+		/**
+		 * 被 Re 的訊息的顏色
+		 */
+		fwdfrom: IRCColor;
+
+		/**
+		 * 行分隔符的顏色
+		 */
+		linesplit: IRCColor;
+
+		/**
+		 * 如果 nick 為 colorful，則從這些顏色中挑選。為了使顏色分布均勻，建議使顏色數量為質數
+		 */
+		nickcolors: IRCColor[];
+	};
+}
+
 let config: TransportConfig;
+let options: Partial<TransportIRCOptions>;
 let icHandler: IRCMessageHandler;
+let messageStyle: TransportMessageStyle;
 
 function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 	config = _config;
-	const options: Partial<TransportConfig[ "options" ][ "IRC" ]> = config.options.IRC || {};
+	options = config.options.IRC || {};
 	icHandler = _icHandler;
+	messageStyle = config.options.messageStyle;
 
 	// 自動加頻道
 	icHandler.once( "event.registered", function () {
 		for ( const g in bridgeMap ) {
-			const cl = BridgeMsg.parseUID( g );
+			const cl = parseUID( g );
 			if ( cl.client === "IRC" ) {
 				// eslint-disable-next-line max-len
 				// winston.warn( `[transport/processor/IC] please set channel "${ cl.id }" to config.IRC.bot.channels, auto join by processors is deprecated.` );
@@ -230,7 +331,6 @@ async function receive( msg: BridgeMsg ) {
 	}
 
 	// 自定义消息样式
-	const messageStyle = config.options.messageStyle;
 	let styleMode = "simple";
 	if ( msg.extra.clients >= 3 && ( msg.extra.clientName.shortname || msg.extra.isNotice ) ) {
 		styleMode = "complex";
@@ -293,14 +393,16 @@ async function receive( msg: BridgeMsg ) {
 
 		// 檔案
 		if ( msg.extra.uploads ) {
-			output += msg.extra.uploads.map( ( u ) => ` ${ u.url }` ).join();
+			output += msg.extra.uploads.map( function ( u ) {
+				return ` ${ u.url }`;
+			} ).join();
 		}
 	}
 
 	await icHandler.say( msg.to, output );
 }
 
-export = {
+export default {
 	init,
 	receive
 } as TransportProcessor<"IRC">;

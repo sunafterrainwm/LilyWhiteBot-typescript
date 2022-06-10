@@ -7,12 +7,17 @@ import winston = require( "winston" );
 import type { PluginExport, PluginManager } from "@app/bot.type";
 import type { Context } from "@app/lib/handlers/Context";
 
+import { parseUID } from "@app/lib/uidParser";
+
 import * as bridge from "@app/plugins/transport/bridge";
 import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 import * as bridgeCommand from "@app/plugins/transport/command";
 import * as bridgeFile from "@app/plugins/transport/file";
 import * as bridgePaeeye from "@app/plugins/transport/paeeye";
+import { TransportIRCOptions } from "@app/plugins/transport/processors/IRC";
+import { TransportTelegramOptions } from "@app/plugins/transport/processors/Telegram";
+import { TransportDiscordOptions } from "@app/plugins/transport/processors/Discord";
 
 export {
 	TransportAlias,
@@ -23,6 +28,7 @@ export {
 } from "@app/plugins/transport/bridge";
 export { TransportCommand } from "@app/plugins/transport/command";
 export { TransportServemediaBase, TransportServemedia } from "@app/plugins/transport/file";
+export { IRCColor } from "@app/plugins/transport/processors/IRC";
 
 export interface TransportBridge {
 	readonly BridgeMsg: typeof BridgeMsg;
@@ -51,8 +57,26 @@ export interface TransportBridge {
 	send( m: BridgeMsg | Context, bot?: boolean ): Promise<boolean>;
 }
 
-export type IRCColor = "white" | "black" | "navy" | "green" | "red" | "brown" | "purple" | "olive" |
-	"yellow" | "lightgreen" | "teal" | "cyan" | "blue" | "pink" | "gray" | "silver";
+type messageStyle = {
+	message: string;
+	reply: string;
+	forward: string;
+	action: string;
+	notice: string;
+};
+
+export type TransportMessageStyle = {
+	/**
+	 * 兩群互聯樣式
+	 */
+	simple: messageStyle;
+
+	/**
+	 * 多群互聯樣式
+	 * 備註：client_short 為空字串時會使用 simple 的樣式
+	 */
+	complex: messageStyle;
+}
 
 export interface TransportConfig {
 	/**
@@ -77,163 +101,16 @@ export interface TransportConfig {
 	disables?: Record<string, string[]>;
 
 	options: {
-		IRC?: {
-			notify: {
-				/**
-				 * 有人進入頻道是否在其他群發出提醒
-				 */
-				join?: boolean;
+		IRC?: TransportIRCOptions;
 
-				/**
-				 * 有人更名的話是否在其他群組發出提醒，可取
-				 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
-				 * 「"none"」、「false」（不提醒）
-				 */
-				rename?: boolean | "all" | "onlyactive" | "none";
+		Telegram?: TransportTelegramOptions;
 
-				/**
-				 * 有人離開頻道的話是否在其他群組提醒，可取
-				 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
-				 * 「"none"」、「false」（不提醒）
-				 */
-				leave?: boolean | "all" | "onlyactive" | "none";
-
-				/**
-				 * 如果 leave 為 onlyactive 的話：最後一次說話後多長時間內離開才會提醒
-				 */
-				timeBeforeLeave?: number;
-
-				/**
-				 * 頻道更換 Topic 時是否提醒
-				 */
-				topic?: boolean;
-			};
-
-			/**
-			 * 這裡可以設定機器人在 IRC 頻道中使用顏色。在啟用顏色功能之前，IRC 頻道的管理員需要解除頻道的 +c 模式，即
-			 *   /msg ChanServ SET #頻道 MLOCK -c
-			 *
-			 *   轉發機器人的訊息有以下三種格式：
-			 *   <T> [nick] message
-			 *   <T> [nick] Re replyto 「repliedmessage」: message
-			 *   <T> [nick] Fwd fwdfrom: message
-			 *
-			 *   （兩群互聯不會出現用於標識軟體的「<T>」）
-			 *
-			 *   可用顏色：white、black、navy、green、red、brown、purple、
-			 *   olive、yellow、lightgreen、teal、cyan、blue、pink、gray、silver
-			 */
-			colorize: {
-				/**
-				 * 是否允許在 IRC 頻道中使用顏色
-				 */
-				enabled: boolean;
-
-				/**
-				 * < 整行通知的顏色 >
-				 */
-				broadcast: IRCColor;
-
-				/**
-				 * 用於標記使用者端「<T>」的顏色
-				 */
-				client: IRCColor;
-
-				/**
-				 * nick 的顏色。除標準顏色外，亦可設為 colorful
-				 */
-				nick: IRCColor | "colorful";
-
-				/**
-				 * Re replyto 的顏色
-				 */
-				replyto: IRCColor;
-
-				/**
-				 * nick 的顏色。除標準顏色外，亦可設為 colorful
-				 */
-				repliedmessage: IRCColor;
-
-				/**
-				 * 被 Re 的訊息的顏色
-				 */
-				fwdfrom: IRCColor;
-
-				/**
-				 * 行分隔符的顏色
-				 */
-				linesplit: IRCColor;
-
-				/**
-				 * 如果 nick 為 colorful，則從這些顏色中挑選。為了使顏色分布均勻，建議使顏色數量為質數
-				 */
-				nickcolors: IRCColor[];
-			};
-		};
-
-		Telegram?: {
-			notify: {
-				join?: boolean;
-				leave?: boolean;
-				pin?: boolean;
-			};
-
-			/**
-			 * 互聯頻道的內容
-			 * 不接受對頻道的雙向轉發，原因是暫無方法檢測監聽到的頻道訊息是不是來自自己
-			 *
-			 * * out             -> 傳出頻道內容，如果無此選項此 plugin 不會監聽頻道發布訊息
-			 * * out,must-review -> 同時檢查頻道是否有互聯出去，有的話進行單向不轉發防止無限迴圈
-			 * * in              -> 傳入內容，僅做為標記供日後 tgApi 變更時使用
-			 * * in,must-review  -> 同上
-			 */
-			channelTransport?: Record<string, "out" | "out,must-review" | "in" | "in,must-review">;
-
-			/**
-			 * 是否轉傳頻道內容
-			 */
-			forwardChannels?: boolean;
-
-			/**
-			 * 如果有人使用 Telegram 命令亦轉發到其他群組（但由於 Telegram 設定的原因，Bot 無法看到命令結果）
-			 */
-			forwardCommands: boolean;
-
-			/**
-			 * 下面是其他群裡面互連機器人的名稱。在轉發這些機器人的訊息時，程式會嘗試從訊息中提取出真正的暱稱，
-			 * 而不是顯示機器人的名稱。參數「[]」、「<>」指真正發訊息者暱稱兩邊的括號樣式，目前只支援這兩種括號。
-			 */
-			forwardBots: Record<string, "[]" | "<>">;
-		};
-
-		Discord?: {
-			/**
-			 * 下面是其他群裡面互連機器人的「ID」。在轉發這些機器人的訊息時，程式會嘗試從訊息中提取出真正的暱稱，
-			 * 而不是顯示機器人的名稱。格式為 「機器人ID」。
-			 * 參數「[]」、「<>」指真正發訊息者暱稱兩邊的括號樣式，目前只支援這兩種括號。
-			 */
-			forwardBots: Record<string, "[]" | "<>">;
-		};
+		Discord?: TransportDiscordOptions;
 
 		/**
 		 * 留空或省略則禁用本功能
 		 */
-		paeeye: string | {
-			/**
-			 * 在訊息前面使用此值會阻止此條訊息向其他群組轉發。
-			 */
-			prepend?: string;
-
-			/**
-			 * 在訊息中間使用此值會阻止此條訊息向其他群組轉發。
-			 */
-			inline?: string;
-
-			/**
-			 * 訊息中與此正規表達式對應會阻止此條訊息向其他群組轉發。
-			 */
-			regexp?: RegExp;
-		};
+		paeeye: bridgePaeeye.TransportPaeeyeOptions;
 
 		/**
 		 * 自訂訊息樣式（使用 https://www.npmjs.com/package/string-format 庫實現）
@@ -244,30 +121,7 @@ export interface TransportConfig {
 		 * 注意：此處的 nick 並不一定是暱稱，具體內容受前面各聊天軟體機器人的 nickStyle 屬性控制。
 		 * 例如 Telegram.options.nickStyle 為 fullname 的話，在轉發 Telegram 群訊息時，nick 也會變成全名。
 		 */
-		messageStyle: {
-			/**
-			 * 兩群互聯樣式
-			 */
-			simple: {
-				message: string;
-				reply: string;
-				forward: string;
-				action: string;
-				notice: string;
-			};
-
-			/**
-			 * 多群互聯樣式
-			 * 備註：client_short 為空字串時會使用 simple 的樣式
-			 */
-			complex: {
-				message: string;
-				reply: string;
-				forward: string;
-				action: string;
-				notice: string;
-			};
-		};
+		messageStyle: TransportMessageStyle;
 
 		/**
 		 * 本節用於處理圖片檔案
@@ -327,8 +181,6 @@ const defaultMessageStyle = {
 };
 
 const transport: PluginExport<"transport"> = async function ( pluginManager, options ) {
-	BridgeMsg.setHandlers( pluginManager.handlers );
-
 	const exports: {
 		BridgeMsg?: typeof BridgeMsg;
 		handlers?: PluginManager[ "handlers" ];
@@ -368,11 +220,11 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 	for ( const group of groups ) {
 		// 建立聯繫
 		for ( const c1 of group ) {
-			const client1 = BridgeMsg.parseUID( c1 ).uid;
+			const client1 = parseUID( c1 ).uid;
 
 			if ( client1 ) {
 				for ( const c2 of group ) {
-					const client2 = BridgeMsg.parseUID( c2 ).uid;
+					const client2 = parseUID( c2 ).uid;
 					if ( !c2 ) {
 						winston.warn( `[transport] bad uid "${ c2 }".` );
 						break;
@@ -395,7 +247,7 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 	// 移除被禁止的聯繫
 	const disables: Record<string, string[]> = options.disables || {};
 	for ( const c1 in disables ) {
-		const client1 = BridgeMsg.parseUID( c1 ).uid;
+		const client1 = parseUID( c1 ).uid;
 
 		if ( client1 ) {
 			if ( !map[ client1 ] ) {
@@ -410,7 +262,7 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 			}
 
 			for ( const c2 of list ) {
-				const client2 = BridgeMsg.parseUID( c2 ).uid;
+				const client2 = parseUID( c2 ).uid;
 				if ( !c2 ) {
 					winston.warn( `[transport] bad uid "${ c2 }".` );
 					break;
@@ -427,24 +279,11 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 
 	Object.assign( bridge.map, map );
 
-	// 调试日志
-	winston.debug( "" );
-	winston.debug( "[transport] Bridge Map:" );
-	for ( const client1 in map ) {
-		for ( const client2 in map[ client1 ] ) {
-			if ( map[ client1 ][ client2 ].disabled ) {
-				winston.debug( `\t${ client1 } -X-> ${ client2 }` );
-			} else {
-				winston.debug( `\t${ client1 } ---> ${ client2 }` );
-			}
-		}
-	}
-
 	// 處理用戶端別名
 	const aliases = options.aliases || {};
 	const aliases2 = {};
 	for ( const a in aliases ) {
-		const cl = BridgeMsg.parseUID( a ).uid;
+		const cl = parseUID( a ).uid;
 		if ( cl ) {
 			const names = aliases[ a ];
 			let shortname: string;
@@ -470,7 +309,26 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 		options.options.messageStyle = defaultMessageStyle;
 	}
 
+	// 載入各用戶端的處理程式，並連接到 bridge 中
+	for ( const [ type, handler ] of pluginManager.handlers ) {
+		const processor: bridge.TransportProcessor = ( await import( `@app/plugins/transport/processors/${ type }` ) ).default;
+		processor.init( handler, options );
+		bridge.addProcessor( type, processor );
+	}
+
 	// 调试日志
+	winston.debug( "" );
+	winston.debug( "[transport] Bridge Map:" );
+	for ( const client1 in map ) {
+		for ( const client2 in map[ client1 ] ) {
+			if ( map[ client1 ][ client2 ].disabled ) {
+				winston.debug( `\t${ client1 } -X-> ${ client2 }` );
+			} else {
+				winston.debug( `\t${ client1 } ---> ${ client2 }` );
+			}
+		}
+	}
+
 	winston.debug( "" );
 	winston.debug( "[transport] Aliases:" );
 	let aliasesCount = 0;
@@ -480,13 +338,6 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 	}
 	if ( aliasesCount === 0 ) {
 		winston.debug( "\tNone" );
-	}
-
-	// 載入各用戶端的處理程式，並連接到 bridge 中
-	for ( const [ type, handler ] of pluginManager.handlers ) {
-		const processor: bridge.TransportProcessor = await import( `@app/plugins/transport/processors/${ type }` );
-		processor.init( handler, options );
-		bridge.addProcessor( type, processor );
 	}
 
 	const { init: _init, ...commandOutput } = bridgeCommand;

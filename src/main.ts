@@ -16,13 +16,14 @@ moduleAlias.addAliases( {
 	"@plugins": path.join( __dirname, "..", "plugins" )
 } );
 
-import type { ConfigTS } from "@config/config.type";
+import type { ClientConfigs, ConfigTS, PluginConfigs } from "@config/config.type";
 import type { MakeCallableConstructor, PluginManager } from "@app/bot.type";
 
 import pkg = require( "@package.json" );
 import { Context } from "@app/lib/handlers/Context";
 import { MessageHandler } from "@app/lib/handlers/MessageHandler";
 import { loadConfig } from "@app/lib/util";
+import * as uidParser from "@app/lib/uidParser";
 
 ( async function () {
 	const allHandlers = new Map<string, string>( [
@@ -40,7 +41,8 @@ import { loadConfig } from "@app/lib/util";
 			Context,
 			MessageHandler
 		},
-		plugins: {}
+		plugins: {},
+		botAdmins: []
 	};
 
 	// 日志初始化
@@ -117,29 +119,48 @@ import { loadConfig } from "@app/lib/util";
 	// 启动各机器人
 	const enabledClients: string[] = [];
 	for ( const type of allHandlers.keys() ) {
-		if ( config[ type ] && !config[ type ].disabled ) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		if ( ( config.clients[ type as keyof ClientConfigs ]as any )?.enable ) {
 			enabledClients.push( type );
 		}
+	}
+	if ( !enabledClients.length ) {
+		winston.info( "No client enable, do you miss something?" );
+		// eslint-disable-next-line no-process-exit
+		process.exit( 1 );
 	}
 	winston.info( `Enabled clients: ${ enabledClients.join( ", " ) }` );
 
 	for ( const client of enabledClients ) {
 		winston.info( `Starting ${ client } bot...` );
 
-		const options = config[ client ];
+		const options = config.clients[ client as keyof ClientConfigs ];
 		const Handler: MakeCallableConstructor<typeof MessageHandler> = ( await import( `@app/lib/handlers/${ allHandlers.get( client ) }` ) ).default;
 		const handler = new Handler( options );
 		handler.start();
 
 		pluginManager.handlers.set( client, handler );
-		// @ts-expect-error TS2769
 		pluginManager.handlerClasses.set( client, {
 			object: Handler,
 			options: options
-		} );
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		} as any );
 
 		winston.info( `${ client } bot has started.` );
 	}
+
+	uidParser.setHandlers( pluginManager.handlers );
+
+	pluginManager.botAdmins.push(
+		...( config.botAdmins || [] )
+			.map( uidParser.parseUID )
+			.map( function ( ast ) {
+				return ast.uid;
+			} )
+			.filter( function ( uid ) {
+				return uid;
+			} )
+	);
 
 	/**
 	 * 載入擴充套件
@@ -147,7 +168,13 @@ import { loadConfig } from "@app/lib/util";
 	winston.info( "" );
 	winston.info( "Loading plugins..." );
 	pluginManager.config = config;
-	for ( const plugin of config.enablePlugins ) {
+	let hasLoadPlugin = false;
+	for ( const plugin in config.plugins ) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		if ( !( config.plugins[ plugin as keyof PluginConfigs ]as any )?.enable ) {
+			continue;
+		}
+		hasLoadPlugin = true;
 		try {
 			winston.info( `Loading plugin: ${ plugin }` );
 			const p = await ( ( await import( `@plugins/${ plugin }` ) ).default( pluginManager, config.plugins[ plugin ] || {} ) );
@@ -161,7 +188,7 @@ import { loadConfig } from "@app/lib/util";
 		}
 	}
 
-	if ( !config.enablePlugins || config.enablePlugins.length === 0 ) {
+	if ( !hasLoadPlugin ) {
 		winston.info( "No plugins loaded." );
 	}
 }() );

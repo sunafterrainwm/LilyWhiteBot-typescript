@@ -9,6 +9,14 @@ import winston = require( "winston" );
 import type { Context } from "@app/lib/handlers/Context";
 import type { PluginExport } from "@app/bot.type";
 
+declare module "@config/config.type" {
+	interface PluginConfigs {
+		// only for fallback
+		// eslint-disable-next-line @typescript-eslint/ban-types
+		"8ball": {}
+	}
+}
+
 const eightballs = [ "As I see it, yes", "It is certain", "It is decidedly so", "Most likely",
 	"Outlook good", "Signs point to yes", "One would be wise to think so", "Naturally", "Without a doubt",
 	"Yes", "Yes, definitely", "You may rely on it", "Reply hazy, try again", "Ask again later",

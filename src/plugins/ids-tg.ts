@@ -6,6 +6,14 @@ import winston = require( "winston" );
 
 import type { PluginExport } from "@app/bot.type";
 
+declare module "@config/config.type" {
+	interface PluginConfigs {
+		// only for fallback
+		// eslint-disable-next-line @typescript-eslint/ban-types
+		"ids-tg": {};
+	}
+}
+
 function getOutPut( value: [ string | false, number ] ) {
 	return `${ value[ 0 ] || "User" } ID: "${ value[ 1 ] }"`;
 }

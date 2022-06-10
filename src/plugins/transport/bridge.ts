@@ -4,6 +4,7 @@ import type { GetChild, handlers, MessageHandler } from "@app/bot.type";
 import type { Context, RawMsg } from "@app/lib/handlers/Context";
 import type { TransportConfig } from "@app/plugins/transport";
 
+import { parseUID } from "@app/lib/uidParser";
 import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 export interface TransportProcessor<N extends string = ""> {
@@ -143,7 +144,7 @@ export async function send<R extends RawMsg>( m: BridgeMsg<R> | Context<R> ) {
 		const msg2 = new BridgeMsg( msg, {
 			to_uid: t
 		} );
-		const new_uid = BridgeMsg.parseUID( t );
+		const new_uid = parseUID( t );
 		const client = new_uid.client;
 
 		promises.push( emitHook( "bridge.receive", msg2 ).then( function () {

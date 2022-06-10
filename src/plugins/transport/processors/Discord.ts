@@ -7,12 +7,27 @@ import LRU = require( "lru-cache" );
 import format = require( "string-format" );
 import winston = require( "winston" );
 
+import type { UploadFile } from "@app/lib/handlers/Context";
 import type { DiscordMessageHandler } from "@app/lib/handlers/DiscordMessageHandler";
-import type { TransportConfig, TransportProcessor } from "@app/plugins/transport";
+import type { TransportConfig, TransportMessageStyle, TransportProcessor } from "@app/plugins/transport";
+import type { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 import { send, truncate } from "@app/plugins/transport/bridge";
-import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 import delay from "@app/lib/delay";
+
+export interface TransportDiscordOptions {
+	/**
+	 * 下面是其他群裡面互連機器人的「ID」。在轉發這些機器人的訊息時，程式會嘗試從訊息中提取出真正的暱稱，
+	 * 而不是顯示機器人的名稱。格式為 「機器人ID」。
+	 * 參數「[]」、「<>」指真正發訊息者暱稱兩邊的括號樣式，目前只支援這兩種括號。
+	 */
+	forwardBots: Record<string, "[]" | "<>">;
+
+	/**
+	 * 在傳送Discord的檔案時直接使用Discord CDN的網址
+	 */
+	allowDiscordCdnFileUrl?: boolean;
+}
 
 const userInfo = new LRU<string, Discord.User>( {
 	max: 500,
@@ -20,8 +35,10 @@ const userInfo = new LRU<string, Discord.User>( {
 } );
 
 let config: TransportConfig;
+let options: Partial<TransportDiscordOptions>;
 let forwardBots: Record<string, "[]" | "<>" | "self"> = {};
 let dcHandler: DiscordMessageHandler;
+let messageStyle: TransportMessageStyle;
 
 // 如果是互聯機器人，那麼提取真實的使用者名稱和訊息內容
 function parseForwardBot( id: string, text: string ) {
@@ -42,8 +59,9 @@ function parseForwardBot( id: string, text: string ) {
 
 function init( _dcHandler: DiscordMessageHandler, _config: TransportConfig ) {
 	config = _config;
-	const options: Partial<TransportConfig[ "options" ][ "Discord" ]> = config.options.Discord || {};
+	options = config.options.Discord || {};
 	forwardBots = options.forwardBots || {};
+	messageStyle = config.options.messageStyle;
 	dcHandler = _dcHandler;
 
 	// 我們自己也是傳話機器人
@@ -61,6 +79,9 @@ function init( _dcHandler: DiscordMessageHandler, _config: TransportConfig ) {
 	// 將訊息加工好並發送給其他群組
 	dcHandler.on( "channel.text", function ( context ) {
 		function toSend() {
+			if ( context.extra.files && context.extra.files.length && options.allowDiscordCdnFileUrl ) {
+				context.extra.uploads = context.extra.files as UploadFile[];
+			}
 			send( context ).catch( function ( err ) {
 				winston.error( "[transport/processor/DC] Uncaught Error:", err );
 			} );
@@ -208,7 +229,6 @@ async function receive( msg: BridgeMsg ) {
 	}
 
 	// 自定义消息样式
-	const messageStyle = config.options.messageStyle;
 	let styleMode = "simple";
 	if ( msg.extra.clients >= 3 && ( msg.extra.clientName.shortname || msg.extra.isNotice ) ) {
 		styleMode = "complex";
@@ -232,7 +252,7 @@ async function receive( msg: BridgeMsg ) {
 	dcHandler.say( msg.to, `${ output }${ attachFileUrls }` );
 }
 
-export = {
+export default {
 	init,
 	receive
 } as TransportProcessor<"Discord">;

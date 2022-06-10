@@ -7,7 +7,54 @@ import { BaseEvents, MessageHandler } from "@app/lib/handlers/MessageHandler";
 import { Context } from "@app/lib/handlers/Context";
 import delay from "@app/lib/delay";
 
-type IRCConf = import( "@config/config.type" ).ConfigTS[ "IRC" ];
+export interface IRCConfig {
+	bot: {
+		server: string;
+		/**
+		 * IRC 暱稱
+		 */
+		nick: string;
+
+		userName: string;
+
+		realName: string;
+		/**
+		 * 需要加入的頻道
+		 */
+		channels: string[];
+
+		autoRejoin: boolean;
+
+		secure: boolean;
+
+		port: number;
+
+		floodProtection: boolean;
+
+		floodProtectionDelay: number;
+
+		sasl: boolean;
+
+		sasl_password: string;
+
+		encoding: string;
+	};
+
+	options: {
+		maxLines: number;
+
+		/**
+		 * 無視某些成員的訊息
+		 */
+		ignore?: string[];
+	};
+}
+
+declare module "@config/config.type" {
+	interface ClientConfigs {
+		IRC: IRCConfig;
+	}
+}
 
 export interface IRCEvents extends BaseEvents<irc.Client, irc.IMessage> {
 	"event.nick"( oldnick: string, newnick: string, channels: string[], message: irc.IMessage ): void;
@@ -80,12 +127,12 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		return this._client.chans;
 	}
 
-	public constructor( config: Partial<IRCConf> = {} ) {
+	public constructor( config: Partial<IRCConfig> = {} ) {
 		super( config );
 
 		// 加载机器人
-		const botConfig: Partial<IRCConf[ "bot" ]> = config.bot;
-		const ircOptions: Partial<IRCConf[ "options" ]> = config.options || {};
+		const botConfig: Partial<IRCConfig[ "bot" ]> = config.bot;
+		const ircOptions: Partial<IRCConfig[ "options" ]> = config.options || {};
 		const client = new irc.Client( botConfig.server, botConfig.nick, {
 			userName: botConfig.userName,
 			realName: botConfig.realName,

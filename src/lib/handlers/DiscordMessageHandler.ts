@@ -5,7 +5,45 @@ import { BaseEvents, MessageHandler } from "@app/lib/handlers/MessageHandler";
 import { Context, ContextExtra } from "@app/lib/handlers/Context";
 import { getFriendlySize } from "@app/lib/util";
 
-type DiscordConf = import( "@config/config.type" ).ConfigTS[ "Discord" ];
+export interface DiscordConfig {
+	bot: {
+		token: string;
+	};
+
+	options: {
+		/**
+		 * 可取「nickname」（使用者暱稱，僅在伺服器有效，否則仍用使用者名稱）、「username」（使用者名稱）、「id」（ID）
+		 */
+		nickStyle: "nickname" | "username" | "id";
+
+		/**
+		 * 考慮到中國國內網路情況，若 https://cdn.discordapp.com 被封鎖請改成 true（對應 https://media.discordapp.net）
+		 */
+		useProxyURL: boolean;
+
+		/**
+		 * 轉發時附帶自訂哏圖片，如為否只轉發表情名稱
+		 */
+		relayEmoji: boolean;
+
+		/**
+		 * 無視 bot 的訊息
+		 * 若只想無視特定 bot 請用下方的 ignore 代替
+		 */
+		ignoreBot?: boolean;
+
+		/**
+		 * 無視某些成員的訊息
+		 */
+		ignore?: string[];
+	};
+}
+
+declare module "@config/config.type" {
+	interface ClientConfigs {
+		Discord: DiscordConfig;
+	}
+}
 
 export interface DiscordEvents extends BaseEvents<Discord.Client, Discord.Message> {
 	"channel.text"( context: Context<Discord.Message> ): void;
@@ -52,11 +90,11 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 		return this.#me;
 	}
 
-	constructor( config: Partial<DiscordConf> = {} ) {
+	constructor( config: Partial<DiscordConfig> = {} ) {
 		super( config );
 
-		const botConfig: Partial<DiscordConf[ "bot" ]> = config.bot || {};
-		const discordOptions: Partial<DiscordConf[ "options" ]> = config.options || {};
+		const botConfig: Partial<DiscordConfig[ "bot" ]> = config.bot || {};
+		const discordOptions: Partial<DiscordConfig[ "options" ]> = config.options || {};
 
 		const client = new Discord.Client( {
 			intents: [

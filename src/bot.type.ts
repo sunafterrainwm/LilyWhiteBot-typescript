@@ -1,5 +1,8 @@
 import type { ConfigTS, PluginConfigs } from "@config/config.type";
 import type { MessageHandler } from "@app/lib/handlers/MessageHandler";
+import type { IRCConfig } from "@app/lib/handlers/IRCMessageHandler";
+import type { TelegramConfig } from "@app/lib/handlers/TelegramMessageHandler";
+import type { DiscordConfig } from "@app/lib/handlers/DiscordMessageHandler";
 
 export type { MessageHandler } from "@app/lib/handlers/MessageHandler";
 export type { RawMsg, RawMsgMap } from "@app/lib/handlers/Context";
@@ -27,15 +30,15 @@ export type handlers = {
 export type handlerClasses = {
 	IRC: {
 		object: typeof import( "@app/lib/handlers/IRCMessageHandler" ).IRCMessageHandler;
-		options: ConfigTS[ "IRC" ];
+		options: IRCConfig;
 	};
 	Telegram: {
 		object: typeof import( "@app/lib/handlers/TelegramMessageHandler" ).TelegramMessageHandler;
-		options: ConfigTS[ "IRC" ];
+		options: TelegramConfig;
 	};
 	Discord: {
 		object: typeof import( "@app/lib/handlers/DiscordMessageHandler" ).DiscordMessageHandler;
-		options: ConfigTS[ "IRC" ];
+		options: DiscordConfig;
 	};
 }
 
@@ -48,7 +51,8 @@ export interface PluginManager {
 	}, handlerClasses>,
 	config: Partial<ConfigTS>,
 	global: PluginManagerGlobal,
-	plugins: Partial<PluginManagerPlugins>
+	plugins: Partial<PluginManagerPlugins>,
+	botAdmins: string[];
 }
 
 /**

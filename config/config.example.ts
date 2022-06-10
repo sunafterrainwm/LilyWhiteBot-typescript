@@ -8,103 +8,115 @@ import path = require( "path" );
  */
 const config: ConfigTS = {
 	configVersion: 2,
-	IRC: {
-		disabled: true, // 設為 true 之後會禁止 IRC 機器人
-		bot: {
-			server: "irc.libera.chat",
-			nick: "",
-			userName: "",
-			realName: "",
-			channels: [
-				"#channel1",
-				"#channel2"
-			],
-			autoRejoin: true,
-			secure: true,
-			port: 6697,
-			floodProtection: true,
-			floodProtectionDelay: 300,
-			sasl: false, // 如果開啟 SASL，那麼需要正確設定前面的 userName 和下面的 sasl_password
-			sasl_password: "",
-			encoding: "UTF-8"
+
+	//
+	clients: {
+		IRC: {
+			enable: false, // 設為 false 之後會禁止 IRC 機器人
+
+			bot: {
+				server: "irc.libera.chat",
+				nick: "",
+				userName: "",
+				realName: "",
+				channels: [
+					"#channel1",
+					"#channel2"
+				],
+				autoRejoin: true,
+				secure: true,
+				port: 6697,
+				floodProtection: true,
+				floodProtectionDelay: 300,
+				sasl: false, // 如果開啟 SASL，那麼需要正確設定前面的 userName 和下面的 sasl_password
+				sasl_password: "",
+				encoding: "UTF-8"
+			},
+			options: {
+				maxLines: 4, // 一次性容許最多四行訊息（包括因為太長而被迫分割的）
+
+				// 無視所有IRC上名稱為「xxx」+ 「數字」的人
+				// 具體表現為不會處理其訊息
+				ignore: [
+					"zhmrtbot"
+				]
+			}
 		},
-		options: {
-			maxLines: 4, // 一次性容許最多四行訊息（包括因為太長而被迫分割的）
+		Telegram: {
+			enable: false, // 設為 false 之後會禁止 Telegram 機器人
 
-			// 無視所有IRC上名稱為「xxx」+ 「數字」的人
-			// 具體表現為不會處理其訊息
-			ignore: [
-				"zhmrtbot"
-			]
-		}
-	},
-	Telegram: {
-		disabled: true, // 設為 true 之後會禁止 Telegram 機器人
-		bot: {
-			token: "", // BotFather 給你的 Token，類似「123456789:q234fipjfjaewkflASDFASjaslkdf」
+			bot: {
+				token: "", // BotFather 給你的 Token，類似「123456789:q234fipjfjaewkflASDFASjaslkdf」
 
-			// 代理伺服器。僅支援 HTTPS 代理
-			proxy: {
-				host: "",
-				port: 0
+				// 代理伺服器。僅支援 HTTPS 代理
+				proxy: {
+					host: "",
+					port: 0
+				},
+
+				// 使用 Webhook 模式，參見 https://core.telegram.org/bots/webhooks
+				webhook: {
+					port: 0, // Webhook 埠，為 0 時不啟用 Webhook
+					path: "", // Webhook 路徑
+					url: "", // Webhook 最終的完整 URL，可被外部存取，用於呼叫 Telegram 介面自動設定網址
+					ssl: {
+						certPath: "", // SSL 憑證，為空時使用 HTTP 協定
+						keyPath: "", // SSL 金鑰
+						caPath: "" // 如使用自簽章憑證，CA 憑證路徑
+					}
+				},
+				apiRoot: "https://api.telegram.org" // Bot API 的根位址，必要的時候可以改成 IP。
+			},
+			options: {
+				// 在其他群組中如何辨識使用者名稱：可取「username」（優先採用使用者名稱） 、
+				// 「fullname」（優先採用全名）、「firstname」（優先採用 First Name）
+				nickStyle: "username",
+
+				// 無視 Telegram 上 id 為 xxxxxx 的人
+				// 負數會嘗試匹配頻道（sender_chat）
+				// 具體表現為不會處理其訊息
+				ignore: [
+					123456789
+				]
+			}
+		},
+		Discord: {
+			enable: false, // 設為 false 之後會禁止 Discord 機器人
+
+			bot: {
+				token: ""
 			},
 
-			// 使用 Webhook 模式，參見 https://core.telegram.org/bots/webhooks
-			webhook: {
-				port: 0, // Webhook 埠，為 0 時不啟用 Webhook
-				path: "", // Webhook 路徑
-				url: "", // Webhook 最終的完整 URL，可被外部存取，用於呼叫 Telegram 介面自動設定網址
-				ssl: {
-					certPath: "", // SSL 憑證，為空時使用 HTTP 協定
-					keyPath: "", // SSL 金鑰
-					caPath: "" // 如使用自簽章憑證，CA 憑證路徑
-				}
-			},
-			apiRoot: "https://api.telegram.org" // Bot API 的根位址，必要的時候可以改成 IP。
-		},
-		options: {
-			// 在其他群組中如何辨識使用者名稱：可取「username」（優先採用使用者名稱） 、
-			// 「fullname」（優先採用全名）、「firstname」（優先採用 First Name）
-			nickStyle: "username",
+			options: {
+				// 可取「nickname」（使用者暱稱，僅在伺服器有效，否則仍用使用者名稱）、「username」（使用者名稱）、「id」（ID）
+				nickStyle: "nickname",
 
-			// 無視 Telegram 上 id 為 xxxxxx 的人
-			// 負數會嘗試匹配頻道（sender_chat）
-			// 具體表現為不會處理其訊息
-			ignore: [
-				123456789
-			]
+				// 考慮到中國國內網路情況，若 https://cdn.discordapp.com 被封鎖請改成 true（對應 https://media.discordapp.net）
+				useProxyURL: false,
+
+				// 轉發時附帶自訂哏圖片，如為否只轉發表情名稱
+				relayEmoji: true,
+
+				// 無視 bot 的訊息
+				// 若只想無視特定 bot 請用下方的 ignore 代替
+				ignoreBot: false,
+
+				// 無視特定 ID 的訊息
+				ignore: [
+					"465433043549683712" /* zhmrtbot */
+
+					// 請注意以下這種寫法會編譯失敗：
+					// 123456780, // TS2322: Type 'number' is not assignable to type 'string'.
+				]
+			}
 		}
 	},
-	Discord: {
-		disabled: true, // 設為 true 之後會禁止 Discord 機器人
 
-		bot: {
-			token: ""
-		},
-
-		options: {
-			// 可取「nickname」（使用者暱稱，僅在伺服器有效，否則仍用使用者名稱）、「username」（使用者名稱）、「id」（ID）
-			nickStyle: "nickname",
-
-			// 考慮到中國國內網路情況，若 https://cdn.discordapp.com 被封鎖請改成 true（對應 https://media.discordapp.net）
-			useProxyURL: false,
-
-			// 轉發時附帶自訂哏圖片，如為否只轉發表情名稱
-			relayEmoji: true,
-
-			// 無視 bot 的訊息
-			// 若只想無視特定 bot 請用下方的 ignore 代替
-			ignoreBot: false,
-
-			// 無視特定 ID 的訊息
-			ignore: [
-				"465433043549683712" /* zhmrtbot */
-
-				// 請注意以下這種寫法會編譯失敗：
-				// 123456780, // TS2322: Type 'number' is not assignable to type 'string'.
-			]
-		}
-	},
+	botAdmins: [
+		// 指定誰可以變更 bot 的設定
+		// 目前於此儲存庫受影響僅有 transport 一個插件（擴充功能）
+		// 'telegram/777000', // 指定 Telegram 用戶 uid 為 777000 的人為管理員
+	],
 
 	logging: {
 		// 紀錄檔等級：從詳細到簡單分別是 debug、info、warning、error，推薦用 info
@@ -114,26 +126,11 @@ const config: ConfigTS = {
 		logfile: path.join( __dirname, "../logs/run.log" )
 	},
 
-	enablePlugins: [
-		// 啟用互聯功能，不想禁止互聯的話請勿移除
-		"transport",
-
-		// 查詢 Telegram 的各種 ID ，由 groupid-tg 更改而來
-		// 可在正式連接之前啟用該套件，然後在 Telegram 群中使用 /groupid 取得ID
-		"ids-tg",
-
-		// 允許查詢 IRC 的一些訊息
-		"ircquery",
-
-		// 允許向 IRC 發送一些命令（注意，不是 IRC 命令而是給頻道內機器人使用的命令）
-		"irccommand",
-
-		// 翻桌
-		"pia"
-	],
-
 	plugins: {
 		transport: {
+			// 啟用互聯功能，不想禁止互聯的話請勿移除
+			enable: true,
+
 			groups: [
 				// 說明：
 				// 1. 可以填任意個群組
@@ -309,7 +306,16 @@ const config: ConfigTS = {
 			}
 		},
 
+		"ids-tg": {
+			// 查詢 Telegram 的各種 ID ，由 groupid-tg 更改而來
+			// 可在正式連接之前啟用該套件，然後在 Telegram 群中使用 /groupid 取得ID
+			enable: true
+		},
+
 		ircquery: {
+			// 允許查詢 IRC 的一些訊息
+			enable: true,
+
 			disables: [ // 不要在這些群組使用
 				"telegram/-12345678" // 軟體名（irc/telegram）要寫全而且小寫……
 			],
@@ -318,6 +324,9 @@ const config: ConfigTS = {
 		},
 
 		irccommand: {
+			// 允許向 IRC 發送一些命令（注意，不是 IRC 命令而是給頻道內機器人使用的命令）
+			enable: true,
+
 			echo: true, // 是否在目前的使用者端顯示命令已傳送
 
 			disables: [ // 不要在這些群組使用
@@ -325,6 +334,11 @@ const config: ConfigTS = {
 			],
 
 			prefix: "irc" // 如果使用，命令會變成 /irctopic、/ircnames 等
+		},
+
+		pia: {
+			// 翻桌
+			enable: true
 		}
 	}
 };

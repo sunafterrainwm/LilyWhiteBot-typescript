@@ -12,7 +12,93 @@ import { MessageHandler, Command, BaseEvents } from "@app/lib/handlers/MessageHa
 import { Context, File } from "@app/lib/handlers/Context";
 import { getFriendlySize, getFriendlyLocation } from "@app/lib/util";
 
-type TelegramConf = import( "@config/config.type" ).ConfigTS[ "Telegram" ];
+export interface TelegramConfig {
+	bot: {
+		/**
+		 * BotFather 給你的 Token，類似「123456789:q234fipjfjaewkflASDFASjaslkdf」
+		 */
+		token: string;
+
+		/**
+		 * 如果使用中國國內網路，無法直連 Telegram 伺服器，可通過設定 proxy（僅支援 HTTPS 代理）來翻牆
+		 * 或者自行在國外架設 Bot API（api.telegram.org）反向代理伺服器然後修改 apiRoot 的值
+		 */
+		proxy?: {
+			/**
+			 * HTTPS 代理伺服器位址
+			 */
+			host: string;
+
+			/**
+			 * HTTPS 代理伺服器埠
+			 */
+			port: number;
+		};
+
+		/**
+		 * 使用 Webhook 模式，參見 https://core.telegram.org/bots/webhooks
+		 */
+		webhook: {
+			/**
+			 * Webhook 埠，為 0 時不啟用 Webhook
+			 */
+			port: number;
+
+			/**
+			 * Webhook 路徑
+			 */
+			path?: string;
+
+			/**
+			 * Webhook 最終的完整 URL，可被外部存取，用於呼叫 Telegram 介面自動設定網址
+			 */
+			url?: string;
+
+			ssl?: {
+				/**
+				 * SSL 憑證，為空時使用 HTTP 協定
+				 */
+				certPath: string;
+
+				/**
+				 * SSL 金鑰
+				 */
+				keyPath: string;
+
+				/**
+				 * 如使用自簽章憑證，CA 憑證路徑
+				 */
+				caPath: string;
+			};
+		};
+
+		/**
+		 * 無特殊需要的話勿動
+		 */
+		apiRoot: string;
+	};
+
+	options: {
+		/**
+		 * 在其他群組中如何辨識使用者名稱：可取「username」（優先採用使用者名稱）、
+		 * 「fullname」（優先採用全名）、「firstname」（優先採用 First Name）
+		 */
+		nickStyle: "username" | "fullname" | "firstname";
+
+		/**
+		 * 無視某些成員的訊息
+		 */
+		ignore?: number[];
+
+		parseChannelOrSenderChat?: boolean;
+	};
+}
+
+declare module "@config/config.type" {
+	interface ClientConfigs {
+		Telegram: TelegramConfig;
+	}
+}
 
 export interface TelegramEvents extends BaseEvents<Telegraf, TContext> {
 	"group.text"( context: Context<TContext> ): void;
@@ -105,11 +191,11 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		return this.#me;
 	}
 
-	public constructor( config: Partial<TelegramConf> = {} ) {
+	public constructor( config: Partial<TelegramConfig> = {} ) {
 		super( config );
 
-		const botConfig: Partial<TelegramConf[ "bot" ]> = config.bot || {};
-		const tgOptions: Partial<TelegramConf[ "options" ]> = config.options || {};
+		const botConfig: Partial<TelegramConfig[ "bot" ]> = config.bot || {};
+		const tgOptions: Partial<TelegramConfig[ "options" ]> = config.options || {};
 
 		// 配置文件兼容性处理
 		for ( const key of [ "proxy", "webhook", "apiRoot" ] ) {
@@ -615,7 +701,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		replyMsgId: number,
 		options?: TelegramSendMessageOpipons<T>
 	): TelegramSendMessageOpipons<T> {
-		if ( ( context._rawdata && context._rawdata.message ) ) {
+		if ( context._rawdata && ( context._rawdata.message || context._rawdata.channelPost ) ) {
 			if ( context.isPrivate ) {
 				return options;
 			} else {
@@ -653,8 +739,12 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		);
 	}
 
-	public getChatAdministrators( group: string | number ): Promise<TT.ChatMember[]> {
-		return this._client.telegram.getChatAdministrators( group );
+	public getChat( chatId: string | number ): Promise<TT.ChatFromGetChat> {
+		return this._client.telegram.getChat( chatId );
+	}
+
+	public getChatAdministrators( chatId: string | number ): Promise<TT.ChatMember[]> {
+		return this._client.telegram.getChatAdministrators( chatId );
 	}
 
 	public getFile( fileId: string ): Promise<TT.File> {

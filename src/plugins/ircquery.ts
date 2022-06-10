@@ -8,9 +8,7 @@ import type { PluginExport } from "@app/bot.type";
 import type { Context } from "@app/lib/handlers/Context";
 import type { IRCMessageHandler } from "@app/lib/handlers/IRCMessageHandler";
 
-import type { IBridgeMsgStatic } from "@app/plugins/transport/BridgeMsg";
-
-let BridgeMsg: IBridgeMsgStatic;
+import { parseUID } from "@app/lib/uidParser";
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
@@ -30,7 +28,7 @@ let icHandler: IRCMessageHandler = null;
 function getChans( context: Context ) {
 	const r: string[] = [];
 	for ( const c of context.extra.mapto ) {
-		const client = BridgeMsg.parseUID( c );
+		const client = parseUID( c );
 		if ( client.client === "IRC" ) {
 			r.push( client.id );
 		}
@@ -122,8 +120,6 @@ const ircquery: PluginExport<"ircquery"> = function ( pluginManager, options ) {
 	if ( !bridge || !pluginManager.handlers.has( "IRC" ) ) {
 		return;
 	}
-
-	BridgeMsg = pluginManager.global.BridgeMsg;
 
 	const prefix = options.prefix || "";
 	icHandler = pluginManager.handlers.get( "IRC" );

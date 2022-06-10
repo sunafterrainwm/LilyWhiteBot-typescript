@@ -5,6 +5,7 @@
 import winston = require( "winston" );
 
 import type { PluginExport } from "@app/bot.type";
+import { parseUID } from "@app/lib/uidParser";
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
@@ -44,7 +45,7 @@ const irccommand: PluginExport<"irccommand"> = function ( pluginManager, options
 
 				let sentCount = 0;
 				for ( const c of context.extra.mapto ) {
-					const client = pluginManager.global.BridgeMsg.parseUID( c );
+					const client = parseUID( c );
 					if ( client.client === "IRC" ) {
 						sentCount++;
 						ircHandler.say( client.id, context.param );

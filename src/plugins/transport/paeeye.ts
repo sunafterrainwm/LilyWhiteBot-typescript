@@ -2,10 +2,27 @@ import winston = require( "winston" );
 
 import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 
+export type TransportPaeeyeOptions = string | {
+	/**
+	 * 在訊息前面使用此值會阻止此條訊息向其他群組轉發。
+	 */
+	prepend?: string;
+
+	/**
+	 * 在訊息中間使用此值會阻止此條訊息向其他群組轉發。
+	 */
+	inline?: string;
+
+	/**
+	 * 訊息中與此正規表達式對應會阻止此條訊息向其他群組轉發。
+	 */
+	regexp?: RegExp;
+};
+
 export function init( bridge: TransportBridge, cnf: TransportConfig ) {
 	bridge.addHook( "bridge.send", function ( msg ) {
 		return new Promise<void>( function ( resolve, reject ) {
-			const paeeye = cnf.options.paeeye;
+			const paeeye: TransportPaeeyeOptions = cnf.options.paeeye;
 
 			if ( paeeye ) {
 				if ( typeof paeeye === "string" ) {

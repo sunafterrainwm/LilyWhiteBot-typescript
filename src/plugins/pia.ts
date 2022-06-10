@@ -14,6 +14,14 @@ import winston = require( "winston" );
 import type { PluginExport } from "@app/bot.type";
 import type { Context } from "@app/lib/handlers/Context";
 
+declare module "@config/config.type" {
+	interface PluginConfigs {
+		// only for fallback
+		// eslint-disable-next-line @typescript-eslint/ban-types
+		pia: {}
+	}
+}
+
 const piaMap = new Map( [
 	[ "pia", "(╯°Д°)╯︵ ~~~~~┻━┻" ],
 	[ "mua", "o(*￣3￣)o" ],
@@ -26,11 +34,11 @@ const piaMap = new Map( [
 	[ "panic", "(ﾟДﾟ≡ﾟдﾟ)" ]
 ] );
 
-const transport: PluginExport<"pia"> = function ( pluginManager ) {
+const pia: PluginExport<"pia"> = function ( pluginManager ) {
 	const bridge = pluginManager.plugins.transport;
 	const BridgeMsg = pluginManager.global.BridgeMsg;
 
-	async function pia( context: Context ) {
+	async function doPia( context: Context ) {
 		const command = context.command;
 		const action = ( piaMap.get( command.replace( /^[!#/]/, "" ) ) + context.param ).trim();
 
@@ -48,17 +56,17 @@ const transport: PluginExport<"pia"> = function ( pluginManager ) {
 
 	if ( bridge ) {
 		for ( const command of piaMap.keys() ) {
-			bridge.addCommand( `${ command }`, pia );
+			bridge.addCommand( `${ command }`, doPia );
 		}
 	} else {
 		// 在完全不开启互联的情况下也能使用
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		for ( const [ _type, handler ] of pluginManager.handlers ) {
 			for ( const command of piaMap.keys() ) {
-				handler.addCommand( `${ command }`, pia );
+				handler.addCommand( `${ command }`, doPia );
 			}
 		}
 	}
 };
 
-export default transport;
+export default pia;
