@@ -201,12 +201,14 @@ export class Context<R extends RawMsg = RawMsg> implements ContextOptin<R> {
 		return this._msgId;
 	}
 
-	public static getUIDFromContext( context: Context, id: number | string ) {
+	public static getUIDFromContext( context: Context, id?: number | string ) {
 		if ( !context.handler ) {
 			return null;
 		}
 
-		return `${ context.handler.type.toLowerCase() }/${ id }`;
+		id = id || context.from;
+
+		return Context.getUIDFromHandler( context.handler, id );
 	}
 
 	public static getUIDFromHandler( handler: MessageHandler, id: number | string ) {

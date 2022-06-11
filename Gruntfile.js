@@ -19,6 +19,10 @@ module.exports = function ( grunt ) {
 				"src/*.js",
 				"src/**/*.js",
 				"config/*.js"
+			],
+			"plugin-build": [
+				"plugins/*.js",
+				"plugins/**/*.js"
 			]
 		}
 	} );

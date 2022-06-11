@@ -260,7 +260,7 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 			message = `${ nick } 已${ action }`;
 		}
 
-		for ( const ch in chans ) {
+		for ( const ch of chans ) {
 			const chan = ch.toLowerCase();
 			if (
 				( options.notify.rename === "all" || options.notify.rename === true ) ||
