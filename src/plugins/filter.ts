@@ -9,7 +9,7 @@
  *         },
  *         {
  *             event: "send/receive",
- *             from: "regex",               // 需要小寫、完整名稱：irc\\/user、telegram\\/userid、qq\\/@qq號
+ *             from: "regex",               // 需要小寫、完整名稱：irc\\/user、telegram\\/userId、qq\\/@qq號
  *             to: "regex",
  *             nick: "regex",
  *             text: "regex",               // 以上均为並列關係
@@ -18,10 +18,12 @@
  *     ]
  * }
  */
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 import type { IBridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 type RegExpAble = RegExp | string;
+type PattenKey = "from" | "to" | "text" | "nick";
+type Pattens = Partial<Record<PattenKey, RegExp>>;
 
 export interface Filter {
 	/**
@@ -30,35 +32,50 @@ export interface Filter {
 	 */
 	event: "send" | "receive";
 
-	from: RegExpAble;
-
-	to: RegExpAble;
-
-	nick: RegExpAble;
-
-	text: RegExpAble;
+	pattens: Pattens;
 
 	/**
 	 * 如果一條訊息回覆了其他訊息，且後者滿足以上條件，則也會被過濾，預設false
 	 */
-	filter_reply: boolean;
+	filter_reply?: boolean;
+}
+
+export interface FilterConfig {
+	/**
+	 * * send：防止訊息發出
+	 * * receive：防止訊息被接收
+	 */
+	event?: "send" | "receive";
+
+	from?: RegExpAble;
+
+	to?: RegExpAble;
+
+	nick?: RegExpAble;
+
+	text?: RegExpAble;
+
+	/**
+	 * 如果一條訊息回覆了其他訊息，且後者滿足以上條件，則也會被過濾，預設false
+	 */
+	filter_reply?: boolean;
 }
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
 		filter: {
-			filters?: Filter[];
-			unfilters?: Filter[];
+			filters?: FilterConfig[];
+			unfilters?: FilterConfig[];
 		};
 	}
 }
 
-const msgfilters: {
-    send: {
+const msgFilters: {
+	send: {
 		filters: Filter[];
 		unfilters: Filter[];
 	};
-    receive: {
+	receive: {
 		filters: Filter[];
 		unfilters: Filter[];
 	};
@@ -73,31 +90,35 @@ const msgfilters: {
 	}
 };
 
-function createFilter( f: Filter, type: "filters" | "unfilters" ) {
+function createFilter( f: FilterConfig, type: "filters" | "unfilters" ) {
 	let arr: Filter[];
 	const opt: Partial<Filter> = {};
 	if ( f.event === "receive" ) {
-		arr = msgfilters.receive[ type ];
+		arr = msgFilters.receive[ type ];
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	} else if ( f.event === "send" || !f.event ) {
-		arr = msgfilters.send[ type ];
+		arr = msgFilters.send[ type ];
 	} else {
 		return;
 	}
 
+	opt.pattens = {};
 	if ( f.from !== undefined ) {
-		opt.from = new RegExp( f.from );
+		opt.pattens.from = new RegExp( f.from );
 	}
 	if ( f.to !== undefined ) {
-		opt.to = new RegExp( f.to );
+		opt.pattens.to = new RegExp( f.to );
 	}
 	if ( f.nick !== undefined ) {
-		opt.nick = new RegExp( f.nick );
+		opt.pattens.nick = new RegExp( f.nick );
 	}
 	if ( f.text !== undefined ) {
-		opt.text = new RegExp( f.text );
+		opt.pattens.text = new RegExp( f.text );
 	}
 
-	arr.push( opt as Filter );
+	if ( Object.keys( opt.pattens ).length ) {
+		arr.push( opt as Filter );
+	}
 }
 
 const filter: PluginExport<"filter"> = function ( pluginManager, options ) {
@@ -107,23 +128,24 @@ const filter: PluginExport<"filter"> = function ( pluginManager, options ) {
 		return;
 	}
 
-	for ( const f of ( options.filters || [] ) ) {
+	for ( const f of ( options?.filters ?? [] ) ) {
 		createFilter( f, "filters" );
 	}
-	for ( const f of ( options.unfilters || [] ) ) {
+	for ( const f of ( options?.unfilters ?? [] ) ) {
 		createFilter( f, "unfilters" );
 	}
 
 	function process( event: "send" | "receive" ) {
 		return function ( msg: IBridgeMsg ) {
-			const filters = msgfilters[ event ];
+			const filters = msgFilters[ event ];
 
 			let rejects = false;
 
 			for ( const f of filters.filters ) {
 				let reject = true, reject_reply = false;
-				for ( const prop in f ) {
-					if ( !( msg[ prop ] && String( msg[ prop ] ).match( f[ prop ] ) ) ) {
+				for ( const prop in f.pattens ) {
+					const patten = msg[ prop as PattenKey ];
+					if ( !( patten && prop in msg && String( msg[ prop as PattenKey ] ).match( patten ) ) ) {
 						reject = false;
 						break;
 					}
@@ -138,8 +160,9 @@ const filter: PluginExport<"filter"> = function ( pluginManager, options ) {
 						nick: msg.extra.reply.nick
 					};
 
-					for ( const prop in f ) {
-						if ( !( reply[ prop ] && String( reply[ prop ] ).match( f[ prop ] ) ) ) {
+					for ( const prop in f.pattens ) {
+						const patten = msg[ prop as PattenKey ];
+						if ( !( patten && prop in reply && String( reply[ prop as PattenKey ] ).match( patten ) ) ) {
 							reject_reply = false;
 							break;
 						}
@@ -151,8 +174,9 @@ const filter: PluginExport<"filter"> = function ( pluginManager, options ) {
 
 			for ( const f of filters.unfilters ) {
 				let reject = false, reject_reply = false;
-				for ( const prop in f ) {
-					if ( !( msg[ prop ] && String( msg[ prop ] ).match( f[ prop ] ) ) ) {
+				for ( const prop in f.pattens ) {
+					const patten = msg[ prop as PattenKey ];
+					if ( !( patten && prop in msg && String( msg[ prop as PattenKey ] ).match( patten ) ) ) {
 						reject = true;
 						break;
 					}
@@ -166,8 +190,9 @@ const filter: PluginExport<"filter"> = function ( pluginManager, options ) {
 						nick: msg.extra.reply.nick
 					};
 
-					for ( const prop in f ) {
-						if ( !( reply[ prop ] && String( reply[ prop ] ).match( f[ prop ] ) ) ) {
+					for ( const prop in f.pattens ) {
+						const patten = msg[ prop as PattenKey ];
+						if ( !( patten && prop in reply && String( reply[ prop as PattenKey ] ).match( patten ) ) ) {
 							reject_reply = true;
 							break;
 						}

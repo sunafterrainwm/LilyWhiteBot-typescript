@@ -19,7 +19,7 @@
 import winston = require( "winston" );
 import { Context } from "@app/lib/handlers/Context";
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 import type { TransportBridge } from "@app/plugins/transport";
 import type { IBridgeMsgStatic } from "@app/plugins/transport/BridgeMsg";
 
@@ -49,7 +49,7 @@ const map: WikilinkyConfig[ "groups" ] = {};
 
 let ignores: string[];
 
-function linky( string: string, articlepath: string ) {
+function linky( string: string, articlePath: string ) {
 	const text: Record<string, true> = {}; // 去重複
 
 	const ret: string[] = [];
@@ -60,7 +60,7 @@ function linky( string: string, articlepath: string ) {
 		$title: string;
 
 	string.replace( /\[\[([^[\]])+?\]\]|{{([^{}]+?)}}/g, function ( $txt ) {
-		if ( text[ $txt ] ) {
+		if ( $txt in text ) {
 			return "<token>";
 		}
 
@@ -69,7 +69,7 @@ function linky( string: string, articlepath: string ) {
 		$txt = $txt.replace( /^{{\s*(?:subst:|safesubst:)?\s*/, "{{" );
 
 		if ( /^\[\[([^|#]+)(?:#([^|]+))?.*?\]\]$/.exec( $txt ) ) {
-			$m = $txt.match( /^\[\[([^|#]+)(?:#([^|]+))?.*?\]\]$/ );
+			$m = $txt.match( /^\[\[([^|#]+)(?:#([^|]+))?.*?\]\]$/ ) ?? [];
 			$page = $m[ 1 ].trim();
 			if ( $m[ 2 ] ) {
 				$section = "#" + $m[ 2 ].trimRight();
@@ -82,10 +82,10 @@ function linky( string: string, articlepath: string ) {
 			}
 			$title = ( `${ $page }${ $section }` ).replace( /\s/g, "_" ).replace( /\?/g, "%3F" ).replace( /!$/, "%21" ).replace( /:$/, "%3A" );
 		} else if ( /^{{\s*#invoke\s*:/.exec( $txt ) ) {
-			$m = $txt.match( /^{{\s*#invoke\s*:\s*([^\s|}]+)\s*(?:\||}})/ );
+			$m = $txt.match( /^{{\s*#invoke\s*:\s*([^\s|}]+)\s*(?:\||}})/ ) ?? [];
 			$title = `Module:${ $m[ 1 ] }`;
 		} else if ( /^{{\s*#(exer|if|ifeq|ifexist|ifexpr|switch|time|language|babel)\s*:/.exec( $txt ) ) {
-			$m = $txt.match( /^{{\s*#(exer|if|ifeq|ifexist|ifexpr|switch|time|language|babel)\s*:/ );
+			$m = $txt.match( /^{{\s*#(exer|if|ifeq|ifexist|ifexpr|switch|time|language|babel)\s*:/ ) ?? [];
 			$title = `Help:解析器函数#${ $m[ 1 ] }`;
 		} else if ( new RegExp( "^{{\\s*(?:CURRENTYEAR|CURRENTMONTH|CURRENTMONTHNAME|CURRENTMONTHNAMEGEN|" +
 			"CURRENTMONTHABBREV|CURRENTDAY|CURRENTDAY2|CURRENTDOW|CURRENTDAYNAME|CURRENTTIME|CURRENTHOUR|CURRENTWEEK|" +
@@ -131,7 +131,7 @@ function linky( string: string, articlepath: string ) {
 		} else if ( /^{{\s*(#language|#special|#tag)(:.+)?}}$/.exec( $txt ) ) {
 			$title = "Help:魔术字#杂项";
 		} else if ( /^{{\s*([^|]+)(?:|.+)?}}$/.exec( $txt ) ) {
-			$m = $txt.match( /^{{\s*([^|]+)(?:|.+)?}}$/ );
+			$m = $txt.match( /^{{\s*([^|]+)(?:|.+)?}}$/ ) ?? [];
 			$page = $m[ 1 ].trim();
 			$title = `${ $page.startsWith( ":" ) ? $page.replace( /^:/, "" ) : `Template:${ $page }` }`;
 		} else {
@@ -139,9 +139,9 @@ function linky( string: string, articlepath: string ) {
 		}
 
 		try {
-			ret.push( new URL( articlepath.replace( "$1", $title.trim() ) ).href );
+			ret.push( new URL( articlePath.replace( "$1", $title.trim() ) ).href );
 		} catch ( e ) {
-			ret.push( articlepath.replace( "$1", $title.trim() ) );
+			ret.push( articlePath.replace( "$1", $title.trim() ) );
 		}
 		return "<token>";
 	} );
@@ -154,11 +154,14 @@ function processlinky( context: Context, bridge?: TransportBridge ) {
 		const from_uid = Context.getUIDFromContext( context, context.from );
 		const to_uid = Context.getUIDFromContext( context, context.to );
 
-		if ( ignores.includes( from_uid ) ) {
+		if ( !from_uid || !to_uid || ignores.includes( from_uid ) ) {
 			return;
 		}
 
-		const rule = Object.prototype.hasOwnProperty.call( map, to_uid ) ? map[ to_uid ] : map.default;
+		const rule =
+			Object.prototype.hasOwnProperty.call( map, to_uid ) ?
+				map[ to_uid ] :
+				map.default;
 
 		if ( rule ) {
 			const links = linky( context.text, rule );
@@ -167,6 +170,7 @@ function processlinky( context: Context, bridge?: TransportBridge ) {
 				context.reply( links.join( "  " ) );
 				// 若互聯且在公開群組調用，則讓其他群也看到連結
 				if ( bridge && !context.isPrivate ) {
+
 					bridge.send( new BridgeMsg( context, {
 						text: links.join( "  " ),
 						isNotice: true
@@ -179,18 +183,18 @@ function processlinky( context: Context, bridge?: TransportBridge ) {
 	}
 }
 
-const wikilinky: PluginExport<"wikilinky"> = function ( pluginManager, options ) {
+const wikilinky: PluginExport<"wikilinky"> = function ( pluginManager, options? ) {
 	if ( !options ) {
 		return;
 	}
 
-	const bridge = pluginManager.plugins?.transport;
-	if ( bridge ) {
+	const bridge = pluginManager.plugins.transport;
+	if ( bridge && pluginManager.global.BridgeMsg ) {
 		BridgeMsg = pluginManager.global.BridgeMsg;
 	}
 
 	Object.assign( map, options.groups );
-	ignores = options.ignores;
+	ignores = options.ignores ?? [];
 
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	for ( const [ _type, handler ] of pluginManager.handlers ) {

@@ -2,7 +2,7 @@ import Discord = require( "discord.js" );
 import winston = require( "winston" );
 
 import { BaseEvents, MessageHandler } from "@app/lib/handlers/MessageHandler";
-import { Context, ContextExtra } from "@app/lib/handlers/Context";
+import { Context, ContextExtra, RawDataContext } from "@app/lib/handlers/Context";
 import { getFriendlySize } from "@app/lib/util";
 
 export interface DiscordConfig {
@@ -46,11 +46,11 @@ declare module "@config/config.type" {
 }
 
 export interface DiscordEvents extends BaseEvents<Discord.Client, Discord.Message> {
-	"channel.text"( context: Context<Discord.Message> ): void;
-	"channel.command"( context: Context<Discord.Message>, comand: string, param: string ): void;
-	[ key: `channel.command#${ string }` ]: ( context: Context<Discord.Message>, param: string ) => void;
+	"channel.text"( context: RawDataContext<Discord.Message> ): void;
+	"channel.command"( context: RawDataContext<Discord.Message>, command: string, param: string ): void;
+	[ key: `channel.command#${ string }` ]: ( context: RawDataContext<Discord.Message>, param: string ) => void;
 	"channel.pin"( info: {
-		from: Discord.User,
+		from: Discord.User;
 		to: Discord.Channel;
 		text: string;
 		rawdata: Discord.Message;
@@ -70,7 +70,7 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 	protected readonly _type: "Discord" = "Discord";
 	protected readonly _id: "D" = "D";
 
-	readonly #token: string;
+	readonly #token?: string;
 	readonly #nickStyle: "nickname" | "username" | "id";
 	readonly #useProxyURL: boolean = false;
 	public get useProxyURL(): boolean {
@@ -85,16 +85,16 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 		return this._client;
 	}
 
-	#me: Discord.ClientUser;
-	public get me(): Discord.ClientUser {
+	#me!: Discord.ClientUser | undefined;
+	public get me(): Discord.ClientUser | undefined {
 		return this.#me;
 	}
 
 	constructor( config: Partial<DiscordConfig> = {} ) {
 		super( config );
 
-		const botConfig: Partial<DiscordConfig[ "bot" ]> = config.bot || {};
-		const discordOptions: Partial<DiscordConfig[ "options" ]> = config.options || {};
+		const botConfig: Partial<DiscordConfig[ "bot" ]> = config.bot ?? {};
+		const discordOptions: Partial<DiscordConfig[ "options" ]> = config.options ?? {};
 
 		const client = new Discord.Client( {
 			intents: [
@@ -127,9 +127,9 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 
 		this._client = client;
 		this.#token = botConfig.token;
-		this.#nickStyle = discordOptions.nickStyle || "username";
-		this.#useProxyURL = discordOptions.useProxyURL;
-		this.#relayEmoji = discordOptions.relayEmoji;
+		this.#nickStyle = discordOptions.nickStyle ?? "username";
+		this.#useProxyURL = !!discordOptions.useProxyURL;
+		this.#relayEmoji = !!discordOptions.relayEmoji;
 
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const that = this;
@@ -137,11 +137,11 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 		client.on( "messageCreate", async function ( rawdata: Discord.Message ) {
 			if (
 				!that._enabled ||
-				rawdata.author.id === client.user.id ||
+				rawdata.author.id === client.user?.id ||
 				discordOptions.ignoreBot && rawdata.author.bot ||
-				discordOptions.ignore && discordOptions.ignore.includes( rawdata.author.id ) ||
+				discordOptions.ignore?.includes( rawdata.author.id ) ||
 				// TODO: MessageEmbed轉文字
-				!rawdata.content && rawdata.embeds && rawdata.embeds.length
+				!rawdata.content && rawdata.embeds.length
 			) {
 				return;
 			} else if ( rawdata.type === "CHANNEL_PINNED_MESSAGE" ) {
@@ -156,7 +156,7 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 
 			let text = rawdata.content;
 			const extra: ContextExtra = {};
-			if ( rawdata.attachments && rawdata.attachments.size ) {
+			if ( rawdata.attachments.size ) {
 				extra.files = [];
 				for ( const [ , p ] of rawdata.attachments ) {
 					extra.files.push( {
@@ -166,16 +166,16 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 						size: p.size,
 						url: that.#useProxyURL ? p.proxyURL : p.url
 					} );
-					text += ` <photo: ${ p.width }x${ p.height }, ${ getFriendlySize( p.size ) }>`;
+					text += ` <photo: ${ p.width ?? 0 }x${ p.height ?? 0 }, ${ getFriendlySize( p.size ) }>`;
 				}
 			}
 
-			if ( rawdata.reference && rawdata.reference.messageId ) {
+			if ( rawdata.reference?.messageId ) {
 				if ( rawdata.channel.id === rawdata.reference.channelId ) {
 					const msg = await rawdata.channel.messages.fetch( rawdata.reference.messageId );
 					extra.reply = {
 						id: rawdata.author.id,
-						nick: that.getNick( msg.member || msg.author ),
+						nick: that.getNick( msg.member ?? msg.author ),
 						username: msg.author.username,
 						discriminator: msg.author.discriminator,
 						message: that.#convertToText( msg ),
@@ -188,7 +188,7 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 			const context = new Context( {
 				from: rawdata.author.id,
 				to: rawdata.channel.id,
-				nick: that.getNick( rawdata.member || rawdata.author ),
+				nick: that.getNick( rawdata.member ?? rawdata.author ),
 				text: text,
 				isPrivate: rawdata.channel.type === "DM",
 				extra: extra,
@@ -198,14 +198,15 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 
 			// 檢查是不是命令
 			// eslint-disable-next-line prefer-const
-			let [ , cmd, , param ] = rawdata.content.trim().match( /^[/!]([A-Za-z0-9_]+)\b(\s+(.*)|\s*)$/u ) || [];
+			let [ , cmd, , param ] = rawdata.content.trim().match( /^[/!]([A-Za-z0-9_]+)\b(\s+(.*)|\s*)$/u ) ?? [];
 			if ( cmd ) {
 				param = ( param || "" ).trim();
 				context.command = cmd;
 				context.param = param;
 
-				if ( typeof that._commands.get( cmd ) === "function" ) {
-					that._commands.get( cmd )( context, cmd, param );
+				const func = that._commands.has( cmd ) ? that._commands.get( cmd ) : null;
+				if ( typeof func === "function" ) {
+					func( context, cmd, param );
 				}
 
 				that.emit( "channel.command", context, cmd, param );
@@ -239,7 +240,7 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 				this._client.channels.cache.get( target ) :
 				await this._client.channels.fetch( target );
 			if ( !channel ) {
-				throw new ReferenceError( `Fetch chennel ${ target } fail.` );
+				throw new ReferenceError( `Fetch channel ${ target } fail.` );
 			} else if ( channel.isText() ) {
 				return await channel.send( message );
 			}
@@ -248,32 +249,41 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 	}
 
 	public async reply( context: Context, message: DiscordSendMessage, options: {
-		withNick?: boolean
+		withNick?: boolean;
 	} = {} ): Promise<Discord.Message> {
 		if ( context.isPrivate ) {
 			return await this.say( String( context.from ), message );
 		} else {
 			if ( options.withNick ) {
-				return await this.say( String( context.to ), `${ context.nick }: ${ message }` );
+				return await this.say(
+					String( context.to ),
+					typeof message === "string" ?
+						`${ context.nick }: ${ message }` :
+						{
+							...message,
+							content: message.content ? `${ context.nick }: ${ message.content }` : context.nick
+						}
+				);
 			} else {
-				return await this.say( String( context.to ), `${ message }` );
+				return await this.say( String( context.to ), message );
 			}
 		}
 	}
 
-	public getNick( userobj: Discord.User | Discord.GuildMember ) {
-		if ( userobj ) {
-			const id: string = userobj.id;
-			let nickname: string = null, username: string;
-			if ( userobj instanceof Discord.GuildMember ) {
-				nickname = userobj.nickname;
-				username = userobj.user.username;
+	public getNick( userObj?: Discord.User | Discord.GuildMember ) {
+		if ( userObj ) {
+			const id: string = userObj.id;
+			let nickname: string | null = null,
+				username: string;
+			if ( userObj instanceof Discord.GuildMember ) {
+				nickname = userObj.nickname;
+				username = userObj.user.username;
 			} else {
-				username = userobj.username;
+				username = userObj.username;
 			}
 
 			if ( this.#nickStyle === "nickname" ) {
-				return nickname || username || id;
+				return ( nickname ?? username ) || id;
 			} else if ( this.#nickStyle === "username" ) {
 				return username || id;
 			} else {
@@ -301,9 +311,9 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 			return "<New member>";
 		} else if ( message.type === "CONTEXT_MENU_COMMAND" ) {
 			return "<Bot Message>";
-		} else if ( message.attachments ) {
+		} else if ( message.attachments.size ) {
 			return "<Photo>";
-		} else if ( message.embeds ) {
+		} else if ( message.embeds.length ) {
 			return "<Embeds>";
 		} else {
 			return "<Message>";
@@ -313,10 +323,11 @@ export class DiscordMessageHandler extends MessageHandler<Discord.Client, Discor
 	public async start() {
 		if ( !this._started ) {
 			this._started = true;
-			this._client.login( this.#token );
+			await this._client.login( this.#token );
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/require-await
 	public async stop() {
 		if ( this._started ) {
 			this._started = false;

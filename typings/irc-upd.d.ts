@@ -3,9 +3,9 @@
 // Definitions by: sunafterrainwm <sunafterrainwm@gmail.com>
 // Definitions: https://github.com/sunafterrainwm/LilyWhiteBot-typescript/tree/typescript/typings/irc-upd.d.ts
 
-// / <reference types="node" />
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/// <reference types="node" />
 
 declare module "irc-upd" {
 	import net = require( "net" );
@@ -13,17 +13,17 @@ declare module "irc-upd" {
 
 	import InternalEventEmitter = require( "events" );
 
-	interface EventEmitterOptions {
-		/**
-		 * Enables automatic capturing of promise rejection.
-		 */
+	declare interface EventEmitterOptions {
+	/**
+	 * Enables automatic capturing of promise rejection.
+	 */
 		captureRejections?: boolean;
 	}
 
-	type Event = ( ...args: any ) => void;
-	type Events = Record<string | symbol, Event>;
+	declare type Event = ( ...args: any ) => void;
+	declare type Events = Record<string | symbol, Event>;
 
-	class EventEmitter<events extends Events = Events> extends InternalEventEmitter {
+	declare class EventEmitter<events extends Events = Events> extends InternalEventEmitter {
 		addListener<V extends keyof events>( event: V, listener: events[ V ] ): this;
 		on<V extends keyof events>( event: V, listener: events[ V ] ): this;
 		once<V extends keyof events>( event: V, listener: events[ V ] ): this;
@@ -36,7 +36,7 @@ declare module "irc-upd" {
 		listenerCount<V extends keyof events>( event: V ): number;
 	}
 
-	export type IChans = Record<string, {
+	declare type IChans = Record<string, {
 		key: string;
 		serverName: string;
 		users: Record<string, "" | "+" | "@">;
@@ -46,7 +46,7 @@ declare module "irc-upd" {
 		topicBy?: string;
 	}>;
 
-	class CyclingPingTimer extends EventEmitter<{
+	declare class CyclingPingTimer extends EventEmitter<{
 		pingTimeout(): void;
 		wantPing(): void;
 	}> {
@@ -62,7 +62,7 @@ declare module "irc-upd" {
 		public notifyOfActivity(): void;
 	}
 
-	export interface IRCEvents extends Events {
+	export declare interface IRCEvents extends Events {
 		/**
 		 * Emitted when the server sends the initial 001 line, indicating you’ve connected to the server.
 		 */
@@ -106,12 +106,12 @@ declare module "irc-upd" {
 		 * or a channel (which represents a message to that channel). The `nick` parameter
 		 * is either the sender’s nick or `null`, representing that the notice comes from the server.
 		 */
-		notice( nick: string | null, to: string, text: string, message: IMessage ): void;
+		notice( nick: string, to: string, text: string, message: IMessage ): void;
 
 		/**
 		 * Emitted whenever a user performs an action (e.g. `/me waves`).
 		 */
-		action( from: string | null, to: string, text: string, message: IMessage ): void;
+		action( from: string, to: string, text: string, message: IMessage ): void;
 
 		/**
 		 * Same as the ‘message’ event, but only emitted when the message is directed to the client.
@@ -295,7 +295,7 @@ declare module "irc-upd" {
 		unhandled( message: IMessage ): void;
 	}
 
-	export class Client extends EventEmitter<IRCEvents> {
+	export declare class Client extends EventEmitter<IRCEvents> {
 		/**
 		 * Connect to an IRC server
 		 *
@@ -303,7 +303,7 @@ declare module "irc-upd" {
 		 * @param nick - nickname
 		 * @param opts
 		 */
-		constructor(
+		public constructor(
 			server: string,
 			nick: string,
 			opts?: IClientOpts
@@ -340,7 +340,7 @@ declare module "irc-upd" {
 				idlength: string[];
 				length: number;
 				limit: string[];
-				modes: Record<string, string>
+				modes: Record<string, string>;
 				types: string;
 			};
 
@@ -348,7 +348,7 @@ declare module "irc-upd" {
 			maxlist: number[];
 			maxtargets: string[];
 			modes: number;
-			nicklength: number
+			nicklength: number;
 			topiclength: number;
 			usermodes: string;
 		};
@@ -528,7 +528,7 @@ declare module "irc-upd" {
 			users: Record<string, string>;
 			mode: string;
 			modeParams: Record<string, string[]>;
-		}
+		};
 		protected _connectionHandler(): void;
 		protected end(): void;
 		protected deactivateFloodProtection(): void;
@@ -537,8 +537,8 @@ declare module "irc-upd" {
 		protected _splitLongLines( words: string, maxLength: number, destination: string[] ): string[];
 		protected emitChannelEvent( eventName: string, channel: string ): void;
 		protected _speak( kind: string, target: string, text: string ): void;
-		_addWhoisData( nick: string, key: string, value: IWhoisData, onlyIfExists: boolean ): void;
-		_clearWhoisData( nick: string ): IWhoisData;
+		protected _addWhoisData( nick: string, key: string, value: IWhoisData, onlyIfExists: boolean ): void;
+		protected _clearWhoisData( nick: string ): IWhoisData;
 		protected _handleCTCP( from: string, to: string, text: string, type: string, message: IMessage ): void;
 		protected convertEncoding( str: string ): string;
 		protected canConvertEncoding(): boolean;
@@ -546,7 +546,7 @@ declare module "irc-upd" {
 	}
 
 	/** Client options object */
-	export interface IClientOpts {
+	export declare interface IClientOpts {
 		/**
 		 * IRC username
 		 *
@@ -705,12 +705,12 @@ declare module "irc-upd" {
 
 	/** Command types */
 	// eslint-disable-next-line no-shadow
-	export enum CommandType {
+	export declare enum CommandType {
 		normal, reply, error
 	}
 
 	/** Parsed IRC message. */
-	export interface IMessage {
+	export declare interface IMessage {
 		/** Prefix */
 		prefix?: string | undefined;
 
@@ -728,7 +728,7 @@ declare module "irc-upd" {
 	}
 
 	/** Whois data */
-	export interface IWhoisData {
+	export declare interface IWhoisData {
 		/** Nickname */
 		nick: string;
 
@@ -759,7 +759,7 @@ declare module "irc-upd" {
 	}
 
 	/** A channel returned by a channel listing. */
-	export interface IChannel {
+	export declare interface IChannel {
 		/** Channel name */
 		name: string;
 
@@ -773,29 +773,25 @@ declare module "irc-upd" {
 	/**
 	 * Handler functions for Client.
 	 */
-	namespace handlers {
+	declare namespace handlers {
 		/**
 		 * 'registered': Emitted when the server sends the initial 001 line,
 		 * indicating you’ve connected to the server. See the raw event for
 		 * details on the message object.
 		 */
-		export interface IRegistered {
-			/**
-			 * @param message - raw message
-			 */
-			( message: IMessage ): void;
-		}
+		/**
+		 * @param message - raw message
+		 */
+		type IRegistered = ( message: IMessage ) => void;
 
 		/**
 		 * 'motd': Emitted when the server sends the message of the day to
 		 * clients.
 		 */
-		export interface IMotd {
-			/**
-			 * @param motd - motd string
-			 */
-			( motd: string ): void;
-		}
+		/**
+		 * @param motd - motd string
+		 */
+		type IMotd = ( motd: string ) => void;
 
 		/**
 		 * 'names': Emitted when the server sends a list of nicks for a channel
@@ -804,148 +800,130 @@ declare module "irc-upd" {
 		 * values ‘’, ‘+’, or ‘@’ depending on the level of that nick in the
 		 * channel.
 		 */
-		export interface INames {
-			/**
-			 * @param channel - channel name
-			 * @param nicks - nicks list
-			 */
-			( channel: string, nicks: string[] ): void;
-		}
+		/**
+		 * @param channel - channel name
+		 * @param nicks - nicks list
+		 */
+		type INames = ( channel: string, nicks: string[] ) => void;
 
 		/**
 		 * 'names#*' As per ‘names’ event but only emits for the subscribed
 		 * channel.
 		 */
-		export interface INamesChannel {
-			/**
-			 * @param channel - channel name
-			 * @param nicks - nicks list
-			 */
-			( nicks: string[] ): void;
-		}
+		/**
+		 * @param channel - channel name
+		 * @param nicks - nicks list
+		 */
+		type INamesChannel = ( nicks: string[] ) => void;
 
 		/**
 		 * 'topic': Emitted when the server sends the channel topic on joining
 		 * a channel, or when a user changes the topic on a channel. See the
 		 * raw event for details on the message object.
 		 */
-		export interface ITopic {
-			/**
-			 * @param channel - channel name
-			 * @param topic - topic
-			 * @param nick - nick
-			 * @param message - raw message
-			 */
-			(
-				channel: string,
-				topic: string,
-				nick: string,
-				message: IMessage
-			): void;
-		}
+		/**
+		 * @param channel - channel name
+		 * @param topic - topic
+		 * @param nick - nick
+		 * @param message - raw message
+		 */
+		type ITopic = (
+			channel: string,
+			topic: string,
+			nick: string,
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'join': Emitted when a user joins a channel (including when the
 		 * client itself joins a channel). See the raw event for details on the
 		 * message object.
 		 */
-		export interface IJoin {
-			/**
-			 * @param channel - channel name
-			 * @param nick - who joined
-			 * @param message - raw message
-			 */
-			( channel: string, nick: string, message: IMessage ): void;
-		}
+		/**
+		 * @param channel - channel name
+		 * @param nick - who joined
+		 * @param message - raw message
+		 */
+		type IJoin = ( channel: string, nick: string, message: IMessage ) => void;
 
 		/**
 		 * 'join#*': As per ‘join’ event but only emits for the subscribed
 		 * channel. See the raw event for details on the message object.
 		 */
-		export interface IJoinChannel {
-			/**
-			 * @param nick - who joined
-			 * @param message - raw message
-			 */
-			( nick: string, message: IMessage ): void;
-		}
+		/**
+		 * @param nick - who joined
+		 * @param message - raw message
+		 */
+		type IJoinChannel = ( nick: string, message: IMessage ) => void;
 
 		/**
 		 * 'part': Emitted when a user parts a channel (including when the
 		 * client itself parts a channel). See the raw event for details on the
 		 * message object.
 		 */
-		export interface IPart {
-			/**
-			 * @param channel - channel name
-			 * @param nick - who parted
-			 * @param reason - part reason
-			 * @param message - raw message
-			 */
-			(
-				channel: string,
-				nick: string,
-				reason: string,
-				message: IMessage
-			): void
-		}
+		/**
+		 * @param channel - channel name
+		 * @param nick - who parted
+		 * @param reason - part reason
+		 * @param message - raw message
+		 */
+		type IPart = (
+			channel: string,
+			nick: string,
+			reason: string,
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'part': As per ‘part’ event but only emits for the subscribed
 		 * channel. See the raw event for details on the message object.
 		 */
-		export interface IPartChannel {
-			/**
-			 * @param nick - who parted
-			 * @param reason - part reason
-			 * @param message - raw message
-			 */
-			(
-				nick: string,
-				reason: string,
-				message: IMessage
-			): void
-		}
+		/**
+		 * @param nick - who parted
+		 * @param reason - part reason
+		 * @param message - raw message
+		 */
+		type IPartChannel = (
+			nick: string,
+			reason: string,
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'kick': Emitted when a user is kicked from a channel. See the raw
 		 * event for details on the message object.
 		 */
-		export interface IKick {
-			/**
-			 * @param channel - channel name
-			 * @param nick - who was kicked
-			 * @param by - kicker
-			 * @param reason - kick reason
-			 * @param message - raw message
-			 */
-			(
-				channel: string,
-				nick: string,
-				by: string,
-				reason: string,
-				message: IMessage
-			): void;
-		}
+		/**
+		 * @param channel - channel name
+		 * @param nick - who was kicked
+		 * @param by - kicker
+		 * @param reason - kick reason
+		 * @param message - raw message
+		 */
+		type IKick = (
+			channel: string,
+			nick: string,
+			by: string,
+			reason: string,
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'kick#*': Emitted when a user is kicked from a channel. See the raw
 		 * event for details on the message object.
 		 */
-		export interface IKickChannel {
-			/**
-			 * @param nick - who was kicked
-			 * @param by - kicker
-			 * @param reason - kick reason
-			 * @param message - raw message
-			 */
-			(
-				nick: string,
-				by: string,
-				reason: string,
-				message: IMessage
-			): void;
-		}
+		/**
+		 * @param nick - who was kicked
+		 * @param by - kicker
+		 * @param reason - kick reason
+		 * @param message - raw message
+		 */
+		type IKickChannel = (
+			nick: string,
+			by: string,
+			reason: string,
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'message': Emitted when a message is sent. to can be either a nick
@@ -953,48 +931,42 @@ declare module "irc-upd" {
 		 * or a channel (which means a message to that channel). See the raw
 		 * event for details on the message object.
 		 */
-		export interface IRecievedMessage {
-			/**
-			 * @param nick - who sent the message
-			 * @param to - to whom was the message sent
-			 * @param text - message text
-			 * @param message - raw message
-			 */
-			(
-				nick: string, to: string, text: string, message: IMessage
-			): void;
-		}
+		/**
+		 * @param nick - who sent the message
+		 * @param to - to whom was the message sent
+		 * @param text - message text
+		 * @param message - raw message
+		 */
+		type IRecievedMessage = (
+			nick: string, to: string, text: string, message: IMessage
+		) => void;
 
 		/**
 		 * 'message#': Emitted when a message is sent to any channel (i.e.
 		 * exactly the same as the message event but excluding private
 		 * messages. See the raw event for details on the message object.
 		 */
-		export interface IMessageAllChannels {
-			/**
-			 * @param nick - who sent the message
-			 * @param to - to whom was the message sent
-			 * @param text - message text
-			 * @param message - raw message
-			 */
-			(
-				nick: string, to: string, text: string, message: IMessage
-			): void;
-		}
+		/**
+		 * @param nick - who sent the message
+		 * @param to - to whom was the message sent
+		 * @param text - message text
+		 * @param message - raw message
+		 */
+		type IMessageAllChannels = (
+			nick: string, to: string, text: string, message: IMessage
+		) => void;
 
 		/**
 		 * 'message#*': As per ‘message’ event but only emits for the
 		 * subscribed channel. See the raw event for details on the message
 		 * object.
 		 */
-		export interface IMessageChannel {
-			/**
-			 * @param nick - who sent the message
-			 * @param text - message text
-			 * @param message - raw message
-			 */
-			( nick: string, text: string, message: IMessage ): void;
-		}
+		/**
+		 * @param nick - who sent the message
+		 * @param text - message text
+		 * @param message - raw message
+		 */
+		type IMessageChannel = ( nick: string, text: string, message: IMessage ) => void;
 
 		/**
 		 * 'selfMessage': Emitted when a message is sent from the client.
@@ -1002,9 +974,7 @@ declare module "irc-upd" {
 		 * (which most likely means a private message), or a channel (which
 		 * means a message to that channel).
 		 */
-		export interface ISelfMessage {
-			( to: string, text: string ): void;
-		}
+		type ISelfMessage = ( to: string, text: string ) => void;
 
 		/**
 		 * 'notice': Emitted when a notice is sent. to can be either a nick
@@ -1013,73 +983,65 @@ declare module "irc-upd" {
 		 * is either the senders nick or null which means that the notice comes
 		 * from the server. See the raw event for details on the message object.
 		 */
-		export interface INotice {
-			/**
-			 * @param nick - from
-			 * @param to - to
-			 * @param text - text
-			 * @param message - raw message
-			 */
-			( nick: string, to: string, text: string, message: IMessage ): void;
-		}
+		/**
+		 * @param nick - from
+		 * @param to - to
+		 * @param text - text
+		 * @param message - raw message
+		 */
+		type INotice = ( nick: string, to: string, text: string, message: IMessage ) => void;
 
 		/**
 		 * 'ping': Emitted when a server PINGs the client. The client will
 		 * automatically send a PONG request just before this is emitted.
 		 */
-		export interface IPing {
-			/**
-			 * @param server - server that adiministered the ping
-			 */
-			( server: string ): void;
-		}
+		/**
+		 * @param server - server that adiministered the ping
+		 */
+		type IPing = ( server: string ) => void;
 
 		/**
 		 * 'pm': As per ‘message’ event but only emits when the message is
 		 * direct to the client. See the raw event for details on the message
 		 * object.
 		 */
-		export interface IPm {
-			/**
-			 * @param nick - sender
-			 * @param text - message text
-			 * @param message - raw message
-			 */
-			( nick: string, text: string, message: IMessage ): void;
-		}
+		/**
+		 * @param nick - sender
+		 * @param text - message text
+		 * @param message - raw message
+		 */
+		type IPm = ( nick: string, text: string, message: IMessage ) => void;
 
 		/**
 		 * 'ctcp': Emitted when a CTCP notice or privmsg was received (type
 		 * is either ‘notice’ or ‘privmsg’). See the raw event for details
 		 * on the message object.
 		 */
-		export interface ICtcp {
-			/**
-			 * @param from - sender
-			 * @param to - recievier
-			 * @param text - ctcp text
-			 * @param type - ctcp type
-			 * @param message - raw message
-			 */
-			(
-				from: string,
-				to: string,
-				text: string,
-				type: string,
-				message: IMessage
-			): void;
-		}
+		/**
+		 * @param from - sender
+		 * @param to - recievier
+		 * @param text - ctcp text
+		 * @param type - ctcp type
+		 * @param message - raw message
+		 */
+		type ICtcp = (
+			from: string,
+			to: string,
+			text: string,
+			type: string,
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'ctcp-*': Emitted when a specific type of CTCP request was
 		 * recieved.
 		 */
-		export interface ICtcpSpecific {
-			/**
-			 * @param from - sender
-			 * @param to - recievier
-			 * @param message - raw message
-			 */
+		interface ICtcpSpecific {
+		/**
+		 * @param from - sender
+		 * @param to - recievier
+		 * @param message - raw message
+		 */
 			(
 				from: string,
 				to: string,
@@ -1101,33 +1063,29 @@ declare module "irc-upd" {
 		 * the user is in. See the raw event for details on the message
 		 * object.
 		 */
-		export interface INick {
-			/**
-			 * @param oldnick - old nickname
-			 * @param newnick - new nickname
-			 * @param channels - channels the nick changed in
-			 * @param message - raw message
-			 */
-			(
-				oldnick: string,
-				newnick: string,
-				channels: string[],
-				message: IMessage
-			): void;
-		}
+		/**
+		 * @param oldnick - old nickname
+		 * @param newnick - new nickname
+		 * @param channels - channels the nick changed in
+		 * @param message - raw message
+		 */
+		type INick = (
+			oldnick: string,
+			newnick: string,
+			channels: string[],
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'invite': Emitted when the client receives an /invite. See the
 		 * raw event for details on the message object.
 		 */
-		export interface IInvite {
-			/**
-			 * @param channel - channel user was invited to
-			 * @param from - user who invited
-			 * @param message - raw message
-			 */
-			( channel: string, from: string, message: IMessage ): void;
-		}
+		/**
+		 * @param channel - channel user was invited to
+		 * @param from - user who invited
+		 * @param message - raw message
+		 */
+		type IInvite = ( channel: string, from: string, message: IMessage ) => void;
 
 		/**
 		 * '+mode'/'-mode': Emitted when a mode is added or removed from a user or
@@ -1139,30 +1097,26 @@ declare module "irc-upd" {
 		 * have any arguments, argument will be ‘undefined’. See the raw
 		 * event for details on the message object.
 		 */
-		export interface IModeChange {
-			/**
-			 * @param channel - channel
-			 * @param by - nick that changed mode
-			 * @param mode - single character mode identifier
-			 * @param argument - mode argument
-			 * @param message - raw message
-			 */
-			(
-				channel: string,
-				by: string,
-				mode: string,
-				argument: string,
-				message: IMessage
-			): void;
-		}
+		/**
+		 * @param channel - channel
+		 * @param by - nick that changed mode
+		 * @param mode - single character mode identifier
+		 * @param argument - mode argument
+		 * @param message - raw message
+		 */
+		type IModeChange = (
+			channel: string,
+			by: string,
+			mode: string,
+			argument: string,
+			message: IMessage
+		) => void;
 
 		/**
 		 * 'whois': Emitted whenever the server finishes outputting a WHOIS
 		 * response.
 		 */
-		export interface IWhois {
-			( info: IWhoisData ): void;
-		}
+		type IWhois = ( info: IWhoisData ) => void;
 
 		/**
 		 * 'channellist': Emitted when the server has finished returning a
@@ -1173,57 +1127,49 @@ declare module "irc-upd" {
 		 * This data is also available via the Client.channellist property
 		 * after this event has fired.
 		 */
-		export interface IChannelList {
-			/**
-			 * @param list - channels
-			 */
-			(
-				list: IChannel[]
-			): void;
-		}
+		/**
+		 * @param list - channels
+		 */
+		type IChannelList = (
+			list: IChannel[]
+		) => void;
 
 		/**
 		 * 'raw': Emitted when ever the client receives a “message” from
 		 * the server. A message is a parsed line from the server.
 		 */
-		export interface IRaw {
-			/**
-			 * @param message - raw message
-			 */
-			( message: IMessage ): void;
-		}
+		/**
+		 * @param message - raw message
+		 */
+		type IRaw = ( message: IMessage ) => void;
 
 		/**
 		 * 'error': Emitted when ever the server responds with an error-type message.
 		 * The message parameter is exactly as in the ‘raw’ event.
 		 */
-		export interface IError {
-			/**
-			 * @param message - raw message
-			 */
-			( message: IMessage ): void;
-		}
+		/**
+		 * @param message - raw message
+		 */
+		type IError = ( message: IMessage ) => void;
 
 		/**
 		 * 'action': Emitted whenever a user performs an action
 		 * (e.g. /me waves).
 		 */
-		export interface IAction {
-			/**
-			 * @param from - sender
-			 * @param to - reciever
-			 * @param text - text
-			 * @param message - raw message
-			 */
-			(
-				from: string, to: string, text: string, message: IMessage
-			): void;
-		}
+		/**
+		 * @param from - sender
+		 * @param to - reciever
+		 * @param text - text
+		 * @param message - raw message
+		 */
+		type IAction = (
+			from: string, to: string, text: string, message: IMessage
+		) => void;
 	}
 
-	export function canConvertEncoding(): boolean;
+	export declare function canConvertEncoding(): boolean;
 
-	export namespace colors {
+	export declare namespace colors {
 		const codes: {
 			white: string;
 			black: string;
@@ -1250,4 +1196,5 @@ declare module "irc-upd" {
 
 		function wrap( color: keyof typeof codes, text: string, resetColor: keyof typeof codes ): string;
 	}
+
 }

@@ -4,7 +4,7 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 import { parseUID } from "@app/lib/uidParser";
 
 declare module "@config/config.type" {
@@ -32,11 +32,17 @@ const irccommand: PluginExport<"irccommand"> = function ( pluginManager, options
 		return;
 	}
 
-	const prefix = options.prefix || "";
-	const echo = options.echo || true;
-	const ircHandler = pluginManager.handlers.get( "IRC" );
+	const prefix = options?.prefix ?? "";
+	const echo = options?.echo ?? true;
+	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+	const ircHandler = pluginManager.handlers.get( "IRC" )!;
 
 	bridge.addCommand( `${ prefix }command`, function ( context ) {
+		if ( !context.extra.mapTo ) {
+			context.reply( "No destination." );
+			winston.debug( `[irccommand] Msg #${ context.msgId }: No destination.` );
+			return;
+		}
 		if ( !context.isPrivate ) {
 			if ( context.param ) {
 				if ( echo ) {
@@ -44,10 +50,11 @@ const irccommand: PluginExport<"irccommand"> = function ( pluginManager, options
 				}
 
 				let sentCount = 0;
-				for ( const c of context.extra.mapto ) {
+				for ( const c of context.extra.mapTo ) {
 					const client = parseUID( c );
 					if ( client.client === "IRC" ) {
 						sentCount++;
+
 						ircHandler.say( client.id, context.param );
 						winston.debug( `[irccommand] Msg #${ context.msgId }: IRC command has sent to ${ client.id }. Param = ${ context.param }` );
 					}
@@ -61,7 +68,7 @@ const irccommand: PluginExport<"irccommand"> = function ( pluginManager, options
 			}
 		}
 		return Promise.resolve();
-	}, Object.assign( options, {
+	}, Object.assign( options ?? {}, {
 		disallowedClients: [ "IRC" ]
 	} ) );
 };

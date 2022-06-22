@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable max-len, @typescript-eslint/no-explicit-any, @typescript-eslint/no-this-alias */
 /*!
  * EventEmitter2 6.4.4
@@ -8,7 +9,6 @@
  */
 import NodeJSEventEmitter from "events";
 
-const hasOwnProperty = Object.hasOwnProperty;
 const defaultMaxListeners = 10;
 
 export interface EventEmitterConfig {
@@ -26,23 +26,23 @@ export interface EventEmitterConfig {
 	 * @default false
 	 * @description set this to `true` if you want to emit the removeListener events.
 	 */
-	removeListener?: boolean,
+	removeListener?: boolean;
 	/**
 	 * @default 10
 	 * @description the maximum amount of listeners that can be assigned to an event.
 	 */
-	maxListeners?: number
+	maxListeners?: number;
 	/**
 	 * @default false
 	 * @description show event name in memory leak message
 	 * when more than maximum amount of listeners is assigned, default false
 	 */
-	verboseMemoryLeak?: boolean
+	verboseMemoryLeak?: boolean;
 	/**
 	 * @default false
 	 * @description disable throwing uncaughtException if an error event is emitted and it has no listeners
 	 */
-	ignoreErrors?: boolean
+	ignoreErrors?: boolean;
 }
 
 type Func = ( ...args: any[] ) => any;
@@ -59,9 +59,7 @@ export interface ListenerFn extends Event {
 	_async?: boolean;
 }
 
-export interface EventAndListener {
-	( event: EventName, ...args: any[] ): void;
-}
+export type EventAndListener = ( event: EventName, ...args: any[] ) => void;
 
 type WaitForFilter<E extends Event = Event> = ( ...values: Parameters<E> ) => boolean;
 
@@ -69,11 +67,11 @@ export interface WaitForOptions<E extends Event = Event> {
 	/**
 	 * @default null
 	 */
-	filter: WaitForFilter<E>,
+	filter: WaitForFilter<E>;
 	/**
 	 * @default false
 	 */
-	handleError: boolean,
+	handleError: boolean;
 }
 
 export interface EventEmitterLike {
@@ -105,25 +103,27 @@ export interface OnOptions {
 
 type OnOptions_Objectify = Partial<OnOptions> & {
 	objectify: true;
-}
+};
 
-function resolveOptions<T>( options: Partial<T>, schema: T, reducers: Partial<Record<keyof T, Func>>, allowUnknown?: boolean ): T;
-function resolveOptions<T>( options: never, schema: T, reducers?: Partial<Record<keyof T, Func>>, allowUnknown?: boolean ): T;
-function resolveOptions<T>( options: Partial<T> | never, schema: T, reducers?: Partial<Record<keyof T, Func>>, allowUnknown?: boolean ): T {
-	const computedOptions: T = Object.assign( {}, schema );
+type ValueMayUndefined<T> = {
+	[ key in keyof T ]: T[ key ] | undefined | null;
+};
+
+function resolveOptions<T>( options: Partial<T>, schema: ValueMayUndefined<T>, reducers: Partial<Record<keyof T, Func>>, allowUnknown?: boolean ): Partial<T>;
+function resolveOptions<T>( options: never, schema: ValueMayUndefined<T>, reducers?: Partial<Record<keyof T, Func>>, allowUnknown?: boolean ): Partial<T>;
+function resolveOptions<T>( options: Partial<T> | undefined | null | never, schema: ValueMayUndefined<T>, reducers?: Partial<Record<keyof T, Func>>, allowUnknown?: boolean ): Partial<T> {
+	const computedOptions: ValueMayUndefined<T> = Object.assign( {}, schema );
 
 	if ( !options ) {
-		return computedOptions;
-	}
-
-	if ( typeof options !== "object" ) {
+		return computedOptions as Partial<T>;
+	} else if ( typeof options !== "object" ) {
 		throw new TypeError( "options must be an object" );
 	}
 
 	const keys: string[] = Object.keys( options );
 	const length: number = keys.length;
 	let option: PropertyKey, value: any;
-	let reducer: ( arg0: any, arg1: ( reason: any ) => void ) => any;
+	let reducer: ( ( arg0: any, arg1: ( reason: any ) => void ) => any ) | null;
 
 	function reject( reason: string ): void {
 		throw new Error( 'Invalid "' + String( option ) + '" option value' + ( reason ? ". Reason: " + reason : "" ) );
@@ -131,16 +131,16 @@ function resolveOptions<T>( options: Partial<T> | never, schema: T, reducers?: P
 
 	for ( let i = 0; i < length; i++ ) {
 		option = keys[ i ];
-		if ( !allowUnknown && !hasOwnProperty.call( schema, option ) ) { // lgtm [js/trivial-conditional]
+		if ( !allowUnknown && !Object.prototype.hasOwnProperty.call( schema, option ) ) { // lgtm [js/trivial-conditional]
 			throw new Error( 'Unknown "' + option + '" option' );
 		}
-		value = options[ option ];
+		value = option in options ? options[ option as keyof T ] : undefined;
 		if ( value !== undefined ) {
-			reducer = reducers[ option ];
-			computedOptions[ option ] = reducer ? reducer( value, reject ) : value;
+			reducer = reducers?.[ option as keyof T ] ?? null;
+			computedOptions[ option as keyof T ] = typeof reducer === "function" ? reducer( value, reject ) : value;
 		}
 	}
-	return computedOptions;
+	return computedOptions as Partial<T>;
 }
 
 function functionReducer( func: Func, reject: Func ): void {
@@ -170,61 +170,45 @@ class Listener<E extends Events = Events, K extends keyof E = EventName> {
 
 export default class EventEmitter<E extends Events = Events> implements Required<EventEmitterLike>, NodeJSEventEmitter {
 	#conf: EventEmitterConfig;
-	#ignoreErrors: boolean;
-	#newListener: boolean;
-	#removeListener: boolean;
-	#verboseMemoryLeak: boolean;
+	#ignoreErrors = false;
+	#newListener = false;
+	#removeListener = false;
+	#verboseMemoryLeak = false;
 
-	#events: Record<string|symbol, ListenerFn[] & {
+	#events: Record<string | symbol, ( ListenerFn[] & {
 		warned?: boolean;
-	}> & {
-		maxListeners?: number;
-	};
-	#all: ListenerFn[];
+	} ) | null> = {};
+	#all: ListenerFn[] | undefined;
 	#maxListeners: number = defaultMaxListeners;
 
 	public constructor( conf?: EventEmitterConfig ) {
-		this.#events = {};
-		this.#newListener = false;
-		this.#removeListener = false;
-		this.#verboseMemoryLeak = false;
-		this.#configure( conf );
+		this.#conf = conf ?? {};
+		this.#configure();
 	}
 
-	#init(): void {
-		this.#events = {};
-		if ( this.#conf ) {
-			this.#configure( this.#conf );
+	#configure(): void {
+		if ( this.#conf.delimiter ) {
+			this.delimiter = this.#conf.delimiter;
 		}
-	}
 
-	#configure( conf?: EventEmitterConfig ): void {
-		if ( conf ) {
-			this.#conf = conf;
+		if ( this.#conf.maxListeners ) {
+			this.maxListeners = this.#conf.maxListeners;
+		}
 
-			if ( conf.delimiter ) {
-				this.delimiter = conf.delimiter;
-			}
+		if ( this.#conf.newListener ) {
+			this.#newListener = !!this.#conf.newListener;
+		}
 
-			if ( conf.maxListeners ) {
-				this.maxListeners = conf.maxListeners;
-			}
+		if ( this.#conf.removeListener ) {
+			this.#removeListener = !!this.#conf.removeListener;
+		}
 
-			if ( conf.newListener ) {
-				this.#newListener = conf.newListener;
-			}
+		if ( this.#conf.verboseMemoryLeak ) {
+			this.#verboseMemoryLeak = !!this.#conf.verboseMemoryLeak;
+		}
 
-			if ( conf.removeListener ) {
-				this.#removeListener = conf.removeListener;
-			}
-
-			if ( conf.verboseMemoryLeak ) {
-				this.#verboseMemoryLeak = conf.verboseMemoryLeak;
-			}
-
-			if ( conf.verboseMemoryLeak ) {
-				this.#ignoreErrors = conf.ignoreErrors;
-			}
+		if ( this.#conf.verboseMemoryLeak ) {
+			this.#ignoreErrors = !!this.#conf.ignoreErrors;
 		}
 	}
 
@@ -243,12 +227,12 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return this.#maxListeners;
 	}
 	public setMaxListeners( n: number ): this {
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 		if ( n !== undefined ) {
 			this.#maxListeners = n;
-			if ( !this.#conf ) {
-				this.#conf = {};
-			}
-			this.#conf.maxListeners = n;
+			Object.assign( this.#conf, {
+				maxListeners: n
+			} );
 		}
 
 		return this;
@@ -310,6 +294,7 @@ export default class EventEmitter<E extends Events = Events> implements Required
 			if ( --ttl === 0 ) {
 				self.off( event, listener );
 			}
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 			return fn( ...args );
 		}
 
@@ -318,11 +303,11 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return this.#on( event, listener, prepend, options );
 	}
 
-	#findPossibleLinsters( event: EventName ): ListenerFn[] {
+	#findPossibleLinters( event: EventName ): ListenerFn[] {
 		if ( typeof event !== "string" || event.split( this.delimiter ).length <= 1 ) {
 			// need to make copy of handlers because list can change in the middle
 			// of emit call
-			return ( this.#events[ event ] || [] ).slice();
+			return ( this.#events[ event ] ?? [] ).slice();
 		}
 
 		const that = this;
@@ -332,18 +317,23 @@ export default class EventEmitter<E extends Events = Events> implements Required
 
 		while ( cut.length > 0 ) {
 			const thisEvent = cut.join( that.delimiter );
-			if ( that.#events[ thisEvent ] ) {
+			const events = that.#events[ thisEvent ];
+			if ( events ) {
 				if ( next.length ) {
-					that.#events[ thisEvent ].forEach( function ( fn ) {
+					events.forEach( function ( fn ) {
 						returns.push( function ( ...args ) {
+							// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 							fn( next.join( that.delimiter ), ...args );
 						} );
 					} );
 				} else {
-					returns.push( ...that.#events[ thisEvent ] );
+					returns.push( ...events );
 				}
 			}
-			next.unshift( cut.pop() );
+			if ( cut.length ) {
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				next.unshift( cut.pop()! );
+			}
 		}
 
 		return returns;
@@ -352,11 +342,6 @@ export default class EventEmitter<E extends Events = Events> implements Required
 	public emit<K extends keyof E>( type: K, ...args: Parameters<E[ K ]> ): boolean;
 	public emit( type: EventName, ...args: any[] ): boolean;
 	public emit( ...args: any[] ): boolean {
-		if ( !this.#events && !this.#all ) {
-			this.#init();
-			return false;
-		}
-
 		const type: EventName = args[ 0 ];
 		let clearArgs: any[];
 
@@ -369,24 +354,26 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		const al: number = arguments.length;
 		let handler: ListenerFn[];
 
-		if ( this.#all && this.#all.length ) {
+		if ( this.#all?.length ) {
 			handler = this.#all.slice();
 
 			for ( let i = 0, l = handler.length; i < l; i++ ) {
 				this.event = type;
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 				handler[ i ]( ...args );
 			}
 		}
 
-		handler = this.#findPossibleLinsters( type );
+		handler = this.#findPossibleLinters( type );
 
-		if ( handler && handler.length ) {
+		if ( handler.length ) {
 			clearArgs = new Array( al - 1 );
 			for ( let j = 1; j < al; j++ ) {
 				clearArgs[ j - 1 ] = args[ j ];
 			}
 			for ( let i = 0, l = handler.length; i < l; i++ ) {
 				this.event = type;
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 				handler[ i ]( ...clearArgs );
 			}
 			return true;
@@ -403,17 +390,10 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return !!this.#all;
 	}
 
-	public emitAsync<K extends keyof E>( type: K, ...args: Parameters<E[ K ]> ): Promise<void[]>;
-	public emitAsync( type: EventName, ...args: any[] ): Promise<void[]>;
-	public async emitAsync( ...args: any[] ): Promise<( boolean|void )[]> {
-		if ( !this.#events && !this.#all ) {
-			return [ false ];
-		}
-
-		if ( !this.#events ) {
-			this.#init();
-		}
-
+	public emitAsync<K extends keyof E>( type: K, ...args: Parameters<E[ K ]> ): Promise<undefined[]>;
+	public emitAsync( type: EventName, ...args: any[] ): Promise<undefined[]>;
+	// eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+	public async emitAsync( ...args: any[] ): Promise<( void | boolean | undefined )[]> {
 		const type: EventName = args[ 0 ];
 		let clearArgs: any[];
 
@@ -431,13 +411,14 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		if ( this.#all ) {
 			for ( let i = 0, l = this.#all.length; i < l; i++ ) {
 				this.event = type;
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 				promises.push( this.#all[ i ]( ...args ) );
 			}
 		}
 
-		handler = this.#events[ type ];
+		handler = this.#events[ type ] ?? [];
 
-		if ( handler && handler.length ) {
+		if ( handler.length ) {
 			handler = handler.slice();
 			clearArgs = new Array( al - 1 );
 			for ( let j = 1; j < al; j++ ) {
@@ -445,6 +426,7 @@ export default class EventEmitter<E extends Events = Events> implements Required
 			}
 			for ( let i = 0, l = handler.length; i < l; i++ ) {
 				this.event = type;
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 				promises.push( handler[ i ]( ...clearArgs ) );
 			}
 		} else if ( !this.#ignoreErrors && !this.#all && type === "error" ) {
@@ -458,7 +440,7 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return Promise.all( promises );
 	}
 
-	public emitSync = this.emitAsync;
+	public emitSync!: this[ "emitAsync" ];
 
 	public on<K extends keyof E>( event: K, fn: E[ K ], options: OnOptions_Objectify ): Listener<E, K>;
 	public on<K extends keyof E>( event: K, fn: E[ K ], options?: boolean | Partial<OnOptions> ): this;
@@ -475,8 +457,9 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return this.#on( type, listener, false, options );
 	}
 
-	public addListener = this.on;
-	public addEventListener = this.on;
+	// @ts-expect-error TS2416
+	public addListener!: this[ "on" ];
+	public addEventListener!: this[ "on" ];
 
 	public prependListener<K extends keyof E>( event: K, fn: E[ K ], options: OnOptions_Objectify ): Listener<E, K>;
 	public prependListener<K extends keyof E>( event: K, fn: E[ K ], options?: boolean | Partial<OnOptions> ): this;
@@ -515,12 +498,12 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return this;
 	}
 
-	#setupListener( event: EventName, listener: ListenerFn, options: boolean | OnOptions ): [ ListenerFn, Listener | this ] {
-		let promisify: boolean;
-		let async: boolean;
-		let nextTick: boolean;
-		let objectify: boolean;
-		const context: EventEmitter<Events> = this;
+	#setupListener( event: EventName, listener: ListenerFn, options?: boolean | OnOptions ): [ ListenerFn, Listener | this ] {
+		let promisify: boolean | undefined;
+		let async: boolean | undefined;
+		let nextTick: boolean | undefined;
+		let objectify: boolean | undefined;
+		const context: EventEmitter = this;
 
 		if ( options === true ) {
 			promisify = true;
@@ -538,29 +521,30 @@ export default class EventEmitter<E extends Events = Events> implements Required
 
 		if ( async || nextTick || promisify ) {
 			const _listener: ListenerFn = listener;
-			const _origin: Event = listener._origin || listener;
-
-			if ( nextTick && !true ) {
-				throw new Error( "process.nextTick is not supported" );
-			}
+			const _origin: Event = listener._origin ?? listener;
 
 			if ( promisify === undefined ) {
 				promisify = listener.constructor.name === "AsyncFunction";
 			}
 
+			// eslint-disable-next-line @typescript-eslint/no-misused-promises
 			listener = function ( ...args ): void | Promise<void> {
 				// eslint-disable-next-line no-shadow
 				const event = context.event;
 
-				return promisify ? ( nextTick ? Promise.resolve() : new Promise( function ( resolve ): void {
-					setImmediate( resolve );
-				} ).then( function (): void {
-					context.event = event;
-					return _listener.apply( context, args );
-				} ) ) : ( nextTick ? process.nextTick : setImmediate )( function (): void {
-					context.event = event;
-					_listener.apply( context, args );
-				} );
+				return promisify ? (
+					nextTick ?
+						Promise.resolve() :
+						new Promise( function ( resolve ): void {
+							setImmediate( resolve );
+						} ).then( function (): void {
+							context.event = event;
+							return _listener.apply( context, args );
+						} ) ) :
+					process.nextTick( function (): void {
+						context.event = event;
+						_listener.apply( context, args );
+					} );
 			};
 
 			listener._async = true;
@@ -571,15 +555,15 @@ export default class EventEmitter<E extends Events = Events> implements Required
 	}
 
 	#logPossibleMemoryLeak( count: number, eventName: EventName ): void {
-		let errorMsg = "(node) warning: possible EventEmitter memory " +
-		"leak detected. " + count + " listeners added. " +
-		"Use emitter.setMaxListeners() to increase limit.";
+		let errorMsg =
+			"(node) warning: possible EventEmitter memory leak detected. " + String( count ) + " listeners added. " +
+			"Use emitter.setMaxListeners() to increase limit.";
 
 		if ( this.#verboseMemoryLeak ) {
 			errorMsg += " Event name: " + String( eventName ) + ".";
 		}
 
-		if ( typeof process !== "undefined" && process.emitWarning ) {
+		if ( typeof process !== "undefined" && "emitWarning" in process ) {
 			const e: Error & {
 				emitter?: EventEmitter;
 				count?: number;
@@ -591,7 +575,7 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		} else {
 			console.error( errorMsg );
 
-			if ( console.trace ) {
+			if ( "trace" in console ) {
 				console.trace();
 			}
 		}
@@ -600,10 +584,6 @@ export default class EventEmitter<E extends Events = Events> implements Required
 	#on( type: EventName, listener: Event, prepend?: boolean, options?: boolean | Partial<OnOptions> ): this | Listener {
 		if ( typeof listener !== "function" ) {
 			throw new Error( "on only accepts instances of Function" );
-		}
-
-		if ( !this.#events ) {
-			this.#init();
 		}
 
 		let returnValue: this | Listener = this;
@@ -618,25 +598,26 @@ export default class EventEmitter<E extends Events = Events> implements Required
 			this.emit( "newListener", type, listener );
 		}
 
-		if ( !this.#events[ type ] ) {
+		const event = this.#events[ type ];
+		if ( !event || !Array.isArray( this.#events[ type ] ) ) {
 			// Optimize the case of one listener. Don't need the extra array object.
 			this.#events[ type ] = [ listener ];
 		} else {
 			// If we've already got an array, just add
 			if ( prepend ) {
-				this.#events[ type ].unshift( listener );
+				event.unshift( listener );
 			} else {
-				this.#events[ type ].push( listener );
+				event.push( listener );
 			}
 
 			// Check for listener leak
 			if (
-				!this.#events[ type ].warned &&
+				!event.warned &&
 				this.#maxListeners > 0 &&
-				this.#events[ type ].length > this.#maxListeners
+				event.length > this.#maxListeners
 			) {
-				this.#events[ type ].warned = true;
-				this.#logPossibleMemoryLeak( this.#events[ type ].length, type );
+				event.warned = true;
+				this.#logPossibleMemoryLeak( event.length, type );
 			}
 		}
 
@@ -651,17 +632,18 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		}
 
 		let handlers: ListenerFn[];
-		const leafs: { _listeners: ListenerFn[] }[] = [];
+		const leafs: { _listeners: ListenerFn[]; }[] = [];
 
 		// does not use listeners(), so no side effect of creating _events[type]
 		if ( !this.#events[ type ] ) {
 			return this;
 		}
-		handlers = this.#events[ type ];
-		leafs.push( { _listeners: handlers } );
+		handlers = this.#events[ type ] ?? [];
+		leafs.push( {
+			_listeners: handlers
+		} );
 
-		for ( let iLeaf = 0; iLeaf < leafs.length; iLeaf++ ) {
-			const leaf = leafs[ iLeaf ];
+		for ( const leaf of leafs ) {
 			handlers = leaf._listeners;
 			let position = -1;
 
@@ -678,9 +660,10 @@ export default class EventEmitter<E extends Events = Events> implements Required
 				continue;
 			}
 
-			this.#events[ type ].splice( position, 1 );
+			this.#events[ type ]?.splice( position, 1 );
 
 			if ( handlers.length === 0 ) {
+				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
 				delete this.#events[ type ];
 			}
 			if ( this.#removeListener ) {
@@ -693,10 +676,10 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return this;
 	}
 
-	public offAny( fn: ListenerFn ): this {
-		let i = 0, l = 0, fns: any[];
-		if ( fn && this.#all && this.#all.length > 0 ) {
-			fns = this.#all;
+	public offAny( fn?: ListenerFn ): this {
+		let i = 0, l = 0;
+		const fns: ListenerFn[] = this.#all ?? [];
+		if ( typeof fn === "function" && this.#all && this.#all.length > 0 ) {
 			for ( i = 0, l = fns.length; i < l; i++ ) {
 				if ( fn === fns[ i ] ) {
 					fns.splice( i, 1 );
@@ -707,7 +690,6 @@ export default class EventEmitter<E extends Events = Events> implements Required
 				}
 			}
 		} else {
-			fns = this.#all;
 			if ( this.#removeListener ) {
 				for ( i = 0, l = fns.length; i < l; i++ ) {
 					this.emit( "removeListenerAny", fns[ i ] );
@@ -718,16 +700,16 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		return this;
 	}
 
-	public removeListener = this.off;
-	public removeEventListener = this.off;
+	// @ts-expect-error TS2416
+	public removeListener!: this[ "off" ];
+	public removeEventListener!: this[ "off" ];
 
-	public removeAllListeners( type: keyof E ): this;
+	public removeAllListeners( type?: keyof E ): this;
 	public removeAllListeners( type?: EventName ): this;
 	public removeAllListeners( type?: EventName ): this {
 		if ( type === undefined ) {
-			if ( this.#events ) {
-				this.#init();
-			}
+			this.#events = {};
+			this.#configure();
 			return this;
 		}
 
@@ -736,39 +718,23 @@ export default class EventEmitter<E extends Events = Events> implements Required
 	}
 
 	public listeners<K extends keyof E>( type: K ): E[K][];
-	public listeners( type: EventName ): ListenerFn[];
-	public listeners( type: EventName ): ListenerFn[] {
-		const _events = this.#events;
+	public listeners( type?: EventName ): ListenerFn[];
+	public listeners( type?: EventName ): ListenerFn[] {
+		const events = this.#events;
 		let keys: EventName[];
-		let listeners: ListenerFn[];
 		let allListeners: ListenerFn[];
 		let i: number;
 
 		if ( type === undefined ) {
-			if ( !_events ) {
-				return [];
-			}
-
-			keys = Reflect.ownKeys( _events );
+			keys = Reflect.ownKeys( events );
 			i = keys.length;
 			allListeners = [];
 			while ( i-- > 0 ) {
-				listeners = _events[ keys[ i ] ];
-				allListeners.push( ...listeners );
+				allListeners.push( ...( events[ keys[ i ] ] ?? [] ) );
 			}
 			return allListeners;
 		} else {
-			if ( !_events ) {
-				return [];
-			}
-
-			listeners = _events[ type ];
-
-			if ( !listeners ) {
-				return [];
-			}
-
-			return listeners;
+			return events[ type ] ?? [];
 		}
 	}
 
@@ -776,13 +742,12 @@ export default class EventEmitter<E extends Events = Events> implements Required
 	public rawListeners( type: EventName ): ListenerFn[];
 	public rawListeners( type: EventName ): ListenerFn[] {
 		return this.listeners( type ).map( function ( fn: ListenerFn ) {
-			return fn._origin || fn.listener || fn;
+			return fn._origin ?? fn.listener ?? fn;
 		} );
 	}
 
 	public eventNames(): EventName[] {
-		const _events = this.#events;
-		return _events ? Reflect.ownKeys( _events ) : [];
+		return Reflect.ownKeys( this.#events );
 	}
 
 	public listenerCount( type: EventName ): number {
@@ -792,10 +757,15 @@ export default class EventEmitter<E extends Events = Events> implements Required
 	public hasListeners( type?: keyof E ): boolean;
 	public hasListeners( type?: EventName ): boolean;
 	public hasListeners( type?: EventName ): boolean {
-		const _events = this.#events;
-		const _all = this.#all;
-
-		return !!( _all && _all.length || _events && ( type === undefined ? Reflect.ownKeys( _events ).length : _events[ type ] ) );
+		const events = this.#events;
+		return typeof type === "undefined" ?
+			!!(
+				this.#all?.length ??
+				Reflect.ownKeys( events ).filter( function ( key ) {
+					return Array.isArray( events[ key ] ) && events[ key ]?.length;
+				} ).length
+			) :
+			!!events[ type ];
 	}
 
 	public listenersAny(): ListenerFn[] {
@@ -806,7 +776,7 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		}
 	}
 
-	public waitFor<K extends keyof E>( event: K, options?: Partial<WaitForOptions<E[K]>> | WaitForFilter<E[K]> ): Promise<Parameters<E[ K ]>>;
+	public waitFor<K extends keyof E>( event: K, options: Partial<WaitForOptions<E[K]>> | WaitForFilter<E[K]> ): Promise<Parameters<E[ K ]>>;
 	public waitFor( event: EventName, options: Partial<WaitForOptions> | WaitForFilter ): Promise<any>;
 	public waitFor( event: EventName, opt: Partial<WaitForOptions> | WaitForFilter ): Promise<any> {
 		const self = this;
@@ -820,16 +790,22 @@ export default class EventEmitter<E extends Events = Events> implements Required
 			options = opt;
 		}
 
-		options = resolveOptions<WaitForOptions>( options, {
-			filter: undefined,
-			handleError: false
-		}, {
-			filter: functionReducer
-		} );
+		options = resolveOptions<WaitForOptions>(
+			options,
+			{
+				filter: undefined,
+				handleError: false
+			},
+			{
+				filter: functionReducer
+			},
+			false
+		);
 
 		return new Promise( function ( resolve, reject ) {
 			function listener( ...args: any[] ) {
 				const filter = options.filter;
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 				if ( filter && !filter( ...args ) ) {
 					return;
 				}
@@ -864,30 +840,34 @@ export default class EventEmitter<E extends Events = Events> implements Required
 				return;
 			}
 
-			const on = ( emitter.addEventListener || emitter.addListener || emitter.on ).bind( emitter );
-			const off = ( emitter.removeEventListener || emitter.removeListener || emitter.off ).bind( emitter );
+			const on = ( emitter.addEventListener ?? emitter.addListener ?? emitter.on )?.bind( emitter );
+			const off = ( emitter.removeEventListener ?? emitter.removeListener ?? emitter.off )?.bind( emitter );
+
+			if ( typeof on === "undefined" || typeof off === "undefined" ) {
+				throw new Error( "Can't Find Valid addListener or removeListener on arguments emitter." );
+			}
 
 			let ttl = 1;
 
 			function eventListener( ...args: any[] ) {
 				if ( --ttl === 0 ) {
-					off( name, eventListener );
+					off?.( name, eventListener );
 				}
 
 				if ( errorListener ) {
-					off( "error", errorListener );
+					off?.( "error", errorListener );
 				}
 
 				resolve( args );
 			}
 
-			let errorListener: ( err: any ) => void;
+			let errorListener: ( ( err: any ) => void )| undefined;
 
 			if ( name !== "error" ) {
-				let ettl = 1;
+				let eTtl = 1;
 
 				errorListener = function ( err: any ) {
-					if ( --ettl === 0 ) {
+					if ( --eTtl === 0 ) {
 						off( name, errorListener );
 					}
 
@@ -912,3 +892,11 @@ export default class EventEmitter<E extends Events = Events> implements Required
 		EventEmitter.prototype.#maxListeners = n;
 	}
 }
+
+/* eslint-disable @typescript-eslint/unbound-method */
+EventEmitter.prototype.emitSync = EventEmitter.prototype.emitAsync;
+EventEmitter.prototype.addListener = EventEmitter.prototype.on;
+EventEmitter.prototype.addEventListener = EventEmitter.prototype.on;
+EventEmitter.prototype.removeListener = EventEmitter.prototype.off;
+EventEmitter.prototype.removeEventListener = EventEmitter.prototype.off;
+/* eslint-enable @typescript-eslint/unbound-method */

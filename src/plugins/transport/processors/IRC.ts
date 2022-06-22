@@ -12,43 +12,92 @@ import type { IRCMessageHandler } from "@app/lib/handlers/IRCMessageHandler";
 import type { TransportConfig, TransportMessageStyle, TransportProcessor } from "@app/plugins/transport";
 
 import { parseUID } from "@app/lib/uidParser";
-import { send, truncate, map as bridgeMap } from "@app/plugins/transport/bridge";
+import { send, truncate, map as bridgeMap, defaultMessageStyle } from "@app/plugins/transport/bridge";
 import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
-export type IRCColor = "white" | "black" | "navy" | "green" | "red" | "brown" | "purple" | "olive" |
-	"yellow" | "lightgreen" | "teal" | "cyan" | "blue" | "pink" | "gray" | "silver";
+export type IRCColor = ( "white" | "black" | "navy" | "green" | "red" | "brown" | "purple" | "olive" |
+"yellow" | "lightgreen" | "teal" | "cyan" | "blue" | "pink" | "gray" | "silver" ) & color.ValidColors;
+
+export interface NotifyOptions {
+	/**
+	 * 有人進入頻道是否在其他群發出提醒
+	 */
+	join?: boolean;
+
+	/**
+	 * 有人更名的話是否在其他群組發出提醒，可取
+	 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
+	 * 「"none"」、「false」（不提醒）
+	 */
+	rename?: boolean | "all" | "onlyactive" | "none";
+
+	/**
+	 * 有人離開頻道的話是否在其他群組提醒，可取
+	 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
+	 * 「"none"」、「false」（不提醒）
+	 */
+	leave?: boolean | "all" | "onlyactive" | "none";
+
+	/**
+	 * 如果 leave 為 onlyactive 的話：最後一次說話後多長時間內離開才會提醒
+	 */
+	timeBeforeLeave?: number;
+
+	/**
+	 * 頻道更換 Topic 時是否提醒
+	 */
+	topic?: boolean;
+}
+
+export interface ColorizeOptions {
+	/**
+	 * 是否允許在 IRC 頻道中使用顏色
+	 */
+	enabled: boolean;
+
+	/**
+	 * < 整行通知的顏色 >
+	 */
+	broadcast?: IRCColor;
+
+	/**
+	 * 用於標記使用者端「<T>」的顏色
+	 */
+	client?: IRCColor;
+
+	/**
+	 * nick 的顏色。除標準顏色外，亦可設為 colorful
+	 */
+	nick?: IRCColor | "colorful";
+
+	/**
+	 * Re replyto 的顏色
+	 */
+	replyto?: IRCColor;
+
+	/**
+	 * 被 Re 的訊息的顏色
+	 */
+	repliedmessage?: IRCColor;
+
+	/**
+	 * Fwd fwdfrom 的顏色
+	 */
+	fwdfrom?: IRCColor;
+
+	/**
+	 * 行分隔符的顏色
+	 */
+	linesplit?: IRCColor;
+
+	/**
+	 * 如果 nick 為 colorful，則從這些顏色中挑選。為了使顏色分布均勻，建議使顏色數量為質數
+	 */
+	nickcolors?: IRCColor[];
+}
 
 export interface TransportIRCOptions {
-	notify: {
-		/**
-		 * 有人進入頻道是否在其他群發出提醒
-		 */
-		join?: boolean;
-
-		/**
-		 * 有人更名的話是否在其他群組發出提醒，可取
-		 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
-		 * 「"none"」、「false」（不提醒）
-		 */
-		rename?: boolean | "all" | "onlyactive" | "none";
-
-		/**
-		 * 有人離開頻道的話是否在其他群組提醒，可取
-		 * 「"all"」、「true」（所有人都提醒）、「"onlyactive"」（只有說過話的人更名才提醒）、
-		 * 「"none"」、「false」（不提醒）
-		 */
-		leave?: boolean | "all" | "onlyactive" | "none";
-
-		/**
-		 * 如果 leave 為 onlyactive 的話：最後一次說話後多長時間內離開才會提醒
-		 */
-		timeBeforeLeave?: number;
-
-		/**
-		 * 頻道更換 Topic 時是否提醒
-		 */
-		topic?: boolean;
-	};
+	notify: NotifyOptions;
 
 	/**
 	 * 這裡可以設定機器人在 IRC 頻道中使用顏色。在啟用顏色功能之前，IRC 頻道的管理員需要解除頻道的 +c 模式，即
@@ -64,64 +113,20 @@ export interface TransportIRCOptions {
 	 *   可用顏色：white、black、navy、green、red、brown、purple、
 	 *   olive、yellow、lightgreen、teal、cyan、blue、pink、gray、silver
 	 */
-	colorize: {
-		/**
-		 * 是否允許在 IRC 頻道中使用顏色
-		 */
-		enabled: boolean;
-
-		/**
-		 * < 整行通知的顏色 >
-		 */
-		broadcast: IRCColor;
-
-		/**
-		 * 用於標記使用者端「<T>」的顏色
-		 */
-		client: IRCColor;
-
-		/**
-		 * nick 的顏色。除標準顏色外，亦可設為 colorful
-		 */
-		nick: IRCColor | "colorful";
-
-		/**
-		 * Re replyto 的顏色
-		 */
-		replyto: IRCColor;
-
-		/**
-		 * nick 的顏色。除標準顏色外，亦可設為 colorful
-		 */
-		repliedmessage: IRCColor;
-
-		/**
-		 * 被 Re 的訊息的顏色
-		 */
-		fwdfrom: IRCColor;
-
-		/**
-		 * 行分隔符的顏色
-		 */
-		linesplit: IRCColor;
-
-		/**
-		 * 如果 nick 為 colorful，則從這些顏色中挑選。為了使顏色分布均勻，建議使顏色數量為質數
-		 */
-		nickcolors: IRCColor[];
-	};
+	colorize: ColorizeOptions;
 }
 
 let config: TransportConfig;
 let options: Partial<TransportIRCOptions>;
 let icHandler: IRCMessageHandler;
 let messageStyle: TransportMessageStyle;
+let colorize: ColorizeOptions;
 
 function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 	config = _config;
-	options = config.options.IRC || {};
+	options = config.options.IRC ?? {};
 	icHandler = _icHandler;
-	messageStyle = config.options.messageStyle;
+	messageStyle = config.options.messageStyle ?? defaultMessageStyle;
 
 	// 自動加頻道
 	icHandler.once( "event.registered", function () {
@@ -135,7 +140,9 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 		}
 	} );
 
-	const colorize: Partial<TransportConfig[ "options" ][ "IRC" ][ "colorize" ]> = options.colorize || {};
+	colorize = options.colorize ?? {
+		enabled: false
+	};
 
 	if ( !options.notify ) {
 		options.notify = {};
@@ -159,11 +166,11 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 		} );
 
 		if ( !context.isPrivate ) { // 記錄使用者發言的時間與頻道
-			if ( !userlist[ context.from ] ) {
-				userlist[ context.from ] = {};
+			if ( !( context.from in userList ) ) {
+				userList[ context.from ] = {};
 			}
 
-			userlist[ context.from ][ String( context.to ).toLowerCase() ] = Date.now();
+			userList[ context.from ][ String( context.to ).toLowerCase() ] = Date.now();
 		}
 	} );
 
@@ -171,7 +178,7 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 	 * 頻道 Topic 變更
 	 */
 	icHandler.on( "channel.topic", function ( channel, topic, nick, message ) {
-		if ( message.command === "TOPIC" && options.notify.topic ) {
+		if ( message.command === "TOPIC" && options.notify?.topic ) {
 			let text: string;
 			if ( topic ) {
 				text = `${ nick } 將頻道Topic設定為 ${ topic }`;
@@ -196,11 +203,11 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 	/*
 	 * 監視加入/離開頻道
 	 */
-	const awaySpan = 1000 * options.notify.timeBeforeLeave;
-	const userlist = {};
+	const awaySpan = 1000 * ( options.notify.timeBeforeLeave ?? 0 );
+	const userList: Record<string, Record<string, number>> = {};
 
 	icHandler.on( "channel.join", function ( channel, nick, message ) {
-		if ( options.notify.join && nick !== icHandler.nick ) {
+		if ( options.notify?.join && nick !== icHandler.nick ) {
 			send( new BridgeMsg( {
 				from: channel.toLowerCase(),
 				to: channel.toLowerCase(),
@@ -217,30 +224,31 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 
 	function isActive( nick: string, channel: string ) {
 		const now = Date.now();
-		return userlist[ nick ] && userlist[ nick ][ channel ] &&
-				awaySpan > 0 && ( now - userlist[ nick ][ channel ] <= awaySpan );
+		return userList[ nick ][ channel ] &&
+				awaySpan > 0 && ( now - userList[ nick ][ channel ] <= awaySpan );
 	}
 
-	icHandler.on( "event.nick", function ( oldnick, newnick, _channels, rawdata ) {
+	icHandler.on( "event.nick", function ( oldNick, newNick, _channels, rawdata ) {
 		// 記錄使用者更名情況
-		if ( userlist[ oldnick ] ) {
-			userlist[ newnick ] = userlist[ oldnick ];
-			delete userlist[ oldnick ];
+		if ( oldNick in userList ) {
+			userList[ newNick ] = userList[ oldNick ];
+			// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+			delete userList[ oldNick ];
 		}
 
-		const message = `${ oldnick } 更名為 ${ newnick }`;
+		const message = `${ oldNick } 更名為 ${ newNick }`;
 
 		for ( const ch in icHandler.chans ) {
 			const chan = ch.toLowerCase();
 
 			if (
-				( options.notify.rename === "all" || options.notify.rename === true ) ||
-				( options.notify.rename === "onlyactive" && userlist[ newnick ] && userlist[ newnick ][ chan ] )
+				( options.notify?.rename === "all" || options.notify?.rename === true ) ||
+				( options.notify?.rename === "onlyactive" && newNick in userList && chan in userList[ newNick ] )
 			) {
 				send( new BridgeMsg( {
 					from: chan,
 					to: chan,
-					nick: newnick,
+					nick: newNick,
 					text: message,
 					isNotice: true,
 					handler: icHandler,
@@ -263,8 +271,8 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 		for ( const ch of chans ) {
 			const chan = ch.toLowerCase();
 			if (
-				( options.notify.rename === "all" || options.notify.rename === true ) ||
-				( options.notify.rename === "onlyactive" && isActive( nick, chan ) )
+				( options.notify?.rename === "all" || options.notify?.rename === true ) ||
+				( options.notify?.rename === "onlyactive" && isActive( nick, chan ) )
 			) {
 				send( new BridgeMsg( {
 					from: chan,
@@ -279,8 +287,9 @@ function init( _icHandler: IRCMessageHandler, _config: TransportConfig ) {
 				} );
 			}
 
-			if ( userlist[ nick ] ) {
-				delete userlist[ nick ][ chan ];
+			if ( nick in userList ) {
+				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+				delete userList[ nick ][ chan ];
 			}
 		}
 	}
@@ -310,15 +319,19 @@ async function receive( msg: BridgeMsg ) {
 		from: msg.from,
 		to: msg.to,
 		text: msg.text,
-		client_short: msg.extra.clientName.shortname,
-		client_full: msg.extra.clientName.fullname,
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		client_short: msg.extra.clientName?.shortname ?? msg.handler!.id,
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		client_full: msg.extra.clientName?.fullname ?? msg.handler!.type,
 		command: msg.command,
 		param: msg.param
 	};
 	if ( msg.extra.reply ) {
 		const reply = msg.extra.reply;
 		meta.reply_nick = reply.nick;
-		meta.reply_user = reply.username;
+		if ( reply.username ) {
+			meta.reply_user = reply.username;
+		}
 		if ( reply.isText ) {
 			meta.reply_text = truncate( reply.message );
 		} else {
@@ -327,12 +340,14 @@ async function receive( msg: BridgeMsg ) {
 	}
 	if ( msg.extra.forward ) {
 		meta.forward_nick = msg.extra.forward.nick;
-		meta.forward_user = msg.extra.forward.username;
+		if ( msg.extra.forward.username ) {
+			meta.forward_user = msg.extra.forward.username;
+		}
 	}
 
 	// 自定义消息样式
-	let styleMode = "simple";
-	if ( msg.extra.clients >= 3 && ( msg.extra.clientName.shortname || msg.extra.isNotice ) ) {
+	let styleMode: "simple" | "complex" = "simple";
+	if ( ( msg.extra.clients ?? 0 ) >= 3 && ( msg.extra.clientName?.shortname || msg.extra.isNotice ) ) {
 		styleMode = "complex";
 	}
 
@@ -351,29 +366,32 @@ async function receive( msg: BridgeMsg ) {
 
 	// 给消息上色
 	let output: string;
-	const colorize: TransportConfig[ "options" ][ "IRC" ][ "colorize" ] = config.options.IRC.colorize;
 	if ( msg.extra.isAction ) {
 		output = format( template, meta );
-		if ( colorize && colorize.enabled && colorize.broadcast ) {
+		if ( colorize.enabled && colorize.broadcast ) {
 			output = color[ colorize.broadcast ]( output );
 		}
 	} else {
-		if ( colorize && colorize.enabled ) {
+		if ( colorize.enabled ) {
 			if ( colorize.client ) {
 				meta.client_short = color[ colorize.client ]( meta.client_short );
 				meta.client_full = color[ colorize.client ]( meta.client_full );
 			}
 			if ( colorize.nick ) {
 				if ( colorize.nick === "colorful" ) {
-					// hash
-					const m = meta.nick.split( "" ).map( function ( x ) {
-						return x.codePointAt( 0 );
-					} ).reduce( function ( x, y ) {
-						return x + y;
-					} );
-					const n = colorize.nickcolors.length;
-
-					meta.nick = color[ colorize.nickcolors[ m % n ] ]( meta.nick );
+					if ( colorize.nickcolors?.length ) {
+						// hash
+						const m = meta.nick.split( "" )
+							.map( function ( x ) {
+								// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+								return x.codePointAt( 0 )!;
+							} )
+							.reduce( function ( x, y ) {
+								return x + y;
+							} );
+						const n = colorize.nickcolors.length;
+						meta.nick = color[ colorize.nickcolors[ m % n ] ]( meta.nick );
+					}
 				} else {
 					meta.nick = color[ colorize.nick ]( meta.nick );
 				}

@@ -2,14 +2,14 @@ import fs = require( "fs" );
 import https = require( "https" );
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { cloneDeep as copyObject } from "lodash";
-import { Telegraf, Context as TContext, Telegram } from "telegraf";
+import { Telegraf, Context as TContext, Telegram, NarrowedContext } from "telegraf";
 import type * as TGT from "telegraf/typings/telegram-types";
 import tls = require( "tls" );
 import type * as TT from "typegram";
 import winston = require( "winston" );
 
 import { MessageHandler, Command, BaseEvents } from "@app/lib/handlers/MessageHandler";
-import { Context, File } from "@app/lib/handlers/Context";
+import { Context, File, RawDataContext } from "@app/lib/handlers/Context";
 import { getFriendlySize, getFriendlyLocation } from "@app/lib/util";
 
 export interface TelegramConfig {
@@ -47,7 +47,7 @@ export interface TelegramConfig {
 			/**
 			 * Webhook 路徑
 			 */
-			path?: string;
+			path: string;
 
 			/**
 			 * Webhook 最終的完整 URL，可被外部存取，用於呼叫 Telegram 介面自動設定網址
@@ -90,6 +90,9 @@ export interface TelegramConfig {
 		 */
 		ignore?: number[];
 
+		/**
+		 * 把匿名發言及頻道發言解析成群組和頻道，而不是以Telegram Fallback Bot的身分傳送
+		 */
 		parseChannelOrSenderChat?: boolean;
 	};
 }
@@ -101,44 +104,57 @@ declare module "@config/config.type" {
 }
 
 export interface TelegramEvents extends BaseEvents<Telegraf, TContext> {
-	"group.text"( context: Context<TContext> ): void;
-	"group.command"( context: Context<TContext>, comand: string, param: string ): void;
-	[ key: `group.command#${ string }` ]: ( context: Context<TContext>, param: string ) => void;
-	"group.channel.text"( channel: TT.Chat.ChannelChat, context: Context<TContext> ): void;
-	"group.channel.richmessage"( channel: TT.Chat.ChannelChat, context: Context<TContext> ): void;
-	"group.richmessage"( context: Context<TContext> ): void;
-	"group.pin"( info: {
+	"group.text"( context: RawDataContext<MessageTContext> ): void;
+	"group.command"( context: RawDataContext<MessageTContext>, command: string, param: string ): void;
+	[ key: `group.command#${ string }` ]: ( context: RawDataContext<MessageTContext>, param: string ) => void;
+	"group.channel.text"( channel: TT.Chat.ChannelChat, context: RawDataContext<MessageTContext> ): void;
+	"group.channel.richmessage"( channel: TT.Chat.ChannelChat, context: RawDataContext<MessageTContext> ): void;
+	"group.richmessage"( context: RawDataContext<MessageTContext> ): void;
+	"group.pin"(
+		info: {
+			from: {
+				id: number;
+				nick: string;
+				username?: string;
+			};
+			to: number;
+			text: string;
+		},
+		ctx: MessageTContext
+	): void;
+	"group.join"(
+		group: number,
 		from: {
 			id: number;
 			nick: string;
 			username?: string;
 		},
-		to: number;
-		text: string;
-	}, ctx: TContext ): void;
-	"group.join"( group: number, from: {
-		id: number;
-		nick: string;
-		username?: string;
-	}, target: {
-		id: number;
-		nick: string;
-		username?: string;
-	}, ctx: TContext ): void;
-	"group.leave"( group: number, from: {
-		id: number;
-		nick: string;
-		username?: string;
-	}, target: {
-		id: number;
-		nick: string;
-		username?: string;
-	}, ctx: TContext ): void;
+		target: {
+			id: number;
+			nick: string;
+			username?: string;
+		},
+		ctx: MessageTContext
+	): void;
+	"group.leave"(
+		group: number,
+		from: {
+			id: number;
+			nick: string;
+			username?: string;
+		},
+		target: {
+			id: number;
+			nick: string;
+			username?: string;
+		},
+		ctx: MessageTContext
+	): void;
 
-	"channel.post"( channel: TT.Chat.ChannelChat, msg: TT.Message, ctx: TContext ): void;
+	"channel.post"( channel: TT.Chat.ChannelChat, msg: TT.Message, ctx: ChannelPostTContext ): void;
 }
 
-type Extras = |
+type Extras =
 	TGT.ExtraReplyMessage |
 	TGT.ExtraPhoto |
 	TGT.ExtraSticker |
@@ -147,11 +163,18 @@ type Extras = |
 	TGT.ExtraVideo |
 	TGT.ExtraDocument;
 
-export type TelegramSendMessageOpipons<T extends Extras = TGT.ExtraReplyMessage> = Partial<T> & {
-	withNick?: boolean
-}
+export type TelegramSendMessageOptions<T extends Extras = TGT.ExtraReplyMessage> = Partial<T> & {
+	withNick?: boolean;
+};
 
 export type TelegramFallbackBots = "Link Channel" | "Group" | "Channel" | false;
+
+export type MessageTContext = NarrowedContext<TContext, TGT.MountMap["message"]>;
+export type ChannelPostTContext = NarrowedContext<TContext, TGT.MountMap["channel_post"]>;
+
+export interface TelegramFile extends File {
+	tgUploadCallback?( context: Context, replyMsgId: number ): Promise<TT.Message | null>;
+}
 
 /**
  * 使用通用介面處理 Telegram 訊息
@@ -159,8 +182,8 @@ export type TelegramFallbackBots = "Link Channel" | "Group" | "Channel" | false;
  * @memberof MessageHandler
  */
 export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, TelegramEvents> {
-	protected readonly _client: Telegraf<TContext>;
-	public get rawClient(): Telegraf<TContext> {
+	protected readonly _client: Telegraf;
+	public get rawClient(): Telegraf {
 		return this._client;
 	}
 
@@ -181,12 +204,12 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 	readonly #nickStyle: "username" | "fullname" | "firstname";
 	#startTime: number = Date.now() / 1000;
 
-	#username: string;
+	#username!: string;
 	public get username() {
 		return this.#username;
 	}
 
-	#me: TT.User;
+	#me!: TT.User;
 	public get me(): TT.User {
 		return this.#me;
 	}
@@ -194,27 +217,22 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 	public constructor( config: Partial<TelegramConfig> = {} ) {
 		super( config );
 
-		const botConfig: Partial<TelegramConfig[ "bot" ]> = config.bot || {};
-		const tgOptions: Partial<TelegramConfig[ "options" ]> = config.options || {};
-
-		// 配置文件兼容性处理
-		for ( const key of [ "proxy", "webhook", "apiRoot" ] ) {
-			botConfig[ key ] = botConfig[ key ] || tgOptions[ key ];
-		}
+		const botConfig: Partial<TelegramConfig[ "bot" ]> = config.bot ?? {};
+		const tgOptions: Partial<TelegramConfig[ "options" ]> = config.options ?? {};
 
 		// 代理
 		let myAgent = https.globalAgent;
-		if ( botConfig.proxy && botConfig.proxy.host ) {
+		if ( botConfig.proxy?.host ) {
 			myAgent = new HttpsProxyAgent( {
 				host: botConfig.proxy.host,
 				port: botConfig.proxy.port
 			} );
 		}
 
-		const client = new Telegraf( botConfig.token, {
+		const client = new Telegraf( botConfig.token ?? "", {
 			telegram: {
 				agent: myAgent,
-				apiRoot: botConfig.apiRoot || "https://api.telegram.org"
+				apiRoot: botConfig.apiRoot ?? "https://api.telegram.org"
 			}
 		} );
 
@@ -226,7 +244,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			const webhookConfig = botConfig.webhook;
 			// 自动设置Webhook网址
 			if ( webhookConfig.url ) {
-				if ( webhookConfig.ssl.certPath ) {
+				if ( webhookConfig.ssl?.certPath ) {
 					client.telegram.setWebhook( webhookConfig.url, {
 						certificate: {
 							source: webhookConfig.ssl.certPath
@@ -238,8 +256,12 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			}
 
 			// 启动Webhook服务器
-			let tlsOptions = null;
-			if ( webhookConfig.ssl && webhookConfig.ssl.certPath ) {
+			let tlsOptions: {
+				key: Buffer;
+				cert: Buffer;
+				ca?: Buffer[];
+			} | null = null;
+			if ( webhookConfig.ssl?.certPath ) {
 				tlsOptions = {
 					key: fs.readFileSync( webhookConfig.ssl.keyPath ),
 					cert: fs.readFileSync( webhookConfig.ssl.certPath )
@@ -255,7 +277,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 				mode: "webhook",
 				params: {
 					path: webhookConfig.path,
-					tlsOptions: tlsOptions,
+					tlsOptions: tlsOptions as tls.TlsOptions,
 					port: webhookConfig.port
 				}
 			};
@@ -267,7 +289,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		}
 
 		this._client = client;
-		this.#nickStyle = tgOptions.nickStyle || "username";
+		this.#nickStyle = tgOptions.nickStyle ?? "username";
 
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const that = this;
@@ -279,12 +301,12 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		} );
 
 		client.on( "message", async function ( ctx, next ) {
-			if ( that._enabled && ctx.message && ctx.chat ) {
+			if ( that._enabled && "message" in ctx && "chat" in ctx ) {
 				if (
 					ctx.message.date < that.#startTime ||
 					tgOptions.ignore && (
 						tgOptions.ignore.includes( ctx.from.id ) ||
-						"sender_chat" in ctx.message && tgOptions.ignore.includes( ctx.message.sender_chat.id )
+						"sender_chat" in ctx.message && ctx.message.sender_chat && tgOptions.ignore.includes( ctx.message.sender_chat.id )
 					)
 				) {
 					return;
@@ -299,60 +321,66 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 					extra: {
 						username: ctx.message.from.username
 					},
-					handler: that,
+					handler: that as MessageHandler,
 					_rawdata: ctx
 				} );
 
-				if (
-					ctx.from.id === 777000 /* Telegram */ &&
-					"forward_from_chat" in ctx.message &&
-					ctx.message.forward_from_chat.type === "channel"
-				) {
-					context.from = ctx.message.forward_from_chat.id;
-					context.nick = "LinkChannel";
-					context.extra.username = ctx.message.forward_from_chat.username;
-					context.extra.isChannel = true;
-				} else if (
-					ctx.from.id === 1087968824 /* GroupAnonymousBot */ &&
-					( ctx.message.chat.type === "group" || ctx.message.chat.type === "supergroup" )
-				) {
-					context.from = ctx.chat.id;
-					context.nick = `Group ${ ctx.message.chat.title }`;
-					context.extra.username = "username" in ctx.message.chat ? ctx.message.chat.username : null;
-				} else if (
-					ctx.from.id === 136817688 /* Channel_Bot */ &&
-					"sender_chat" in ctx.message &&
-					ctx.message.sender_chat.type === "channel"
-				) {
-					context.from = ctx.message.sender_chat.id;
-					context.nick = `Channel ${ ctx.message.sender_chat.title }`;
-					context.extra.username = ctx.message.sender_chat.username;
+				if ( tgOptions.parseChannelOrSenderChat ) {
+					if (
+						ctx.from.id === 777000 /* Telegram */ &&
+						"forward_from_chat" in ctx.message &&
+						ctx.message.forward_from_chat?.type === "channel"
+					) {
+						context.from = ctx.message.forward_from_chat.id;
+						context.nick = "LinkChannel";
+						context.extra.username = ctx.message.forward_from_chat.username;
+						context.extra.isChannel = true;
+					} else if (
+						ctx.from.id === 1087968824 /* GroupAnonymousBot */ &&
+						( ctx.message.chat.type === "group" || ctx.message.chat.type === "supergroup" )
+					) {
+						context.from = ctx.chat.id;
+						context.nick = `Group ${ ctx.message.chat.title }`;
+						context.extra.username = "username" in ctx.message.chat ? ctx.message.chat.username : null;
+					} else if (
+						ctx.from.id === 136817688 /* Channel_Bot */ &&
+						"sender_chat" in ctx.message &&
+						ctx.message.sender_chat?.type === "channel"
+					) {
+						context.from = ctx.message.sender_chat.id;
+						context.nick = `Channel ${ ctx.message.sender_chat.title }`;
+						context.extra.username = ctx.message.sender_chat.username;
+					}
 				}
 
-				if ( "reply_to_message" in ctx.message ) {
+				if ( "reply_to_message" in ctx.message && ctx.message.reply_to_message ) {
 					const reply: TT.ReplyMessage = ctx.message.reply_to_message;
 					context.extra.reply = {
 						nick: that.getNick( reply.from ),
-						username: reply.from.username,
+						username: reply.from?.username,
 						message: that.convertToText( reply ),
 						isText: "text" in reply && !!reply.text,
-						id: String( reply.from.id ),
+						id: String( reply.from?.id ),
 						_rawdata: null
 					};
 
 					if (
-						reply.from.id === 777000 &&
+						tgOptions.parseChannelOrSenderChat &&
+						reply.from?.id === 777000 &&
 						"forward_from_chat" in reply &&
-						reply.forward_from_chat.type === "channel"
+						reply.forward_from_chat?.type === "channel"
 					) {
-						context.extra.reply.nick = `Channel ${ reply.forward_from_chat.title }`;
-						context.extra.reply.username = reply.forward_from_chat.username;
-						context.extra.reply.id = reply.forward_from_chat.id;
+						Object.assign( context.extra.reply, {
+							nick: `Channel ${ reply.forward_from_chat.title }`,
+							username: reply.forward_from_chat.username,
+							id: reply.forward_from_chat.id
+						} );
 					}
-				} else if ( "forward_from" in ctx.message ) {
+				} else if ( "forward_from" in ctx.message && ctx.message.forward_from ) {
 					const fwd: TT.User = ctx.message.forward_from;
-					const fwdChat: TT.Chat = ctx.message.forward_from_chat;
+					const fwdChat: TT.Chat | undefined = ctx.message.forward_from_chat;
 					if (
+						tgOptions.parseChannelOrSenderChat &&
 						fwd.id === 777000 &&
 						fwdChat &&
 						fwdChat.type === "channel"
@@ -376,24 +404,25 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 
 					// 解析命令
 					// eslint-disable-next-line prefer-const
-					let [ , cmd, , param ] = ctx.message.text.match( /^\/([A-Za-z0-9_@]+)(\s+(.*)|\s*)$/u ) || [];
+					let [ , cmd, , param ] = ctx.message.text.match( /^\/([A-Za-z0-9_@]+)(\s+(.*)|\s*)$/u ) ?? [];
 					if ( cmd ) {
 						// 如果包含 Bot 名，判断是否为自己
-						const [ , c, , n ] = cmd.match( /^([A-Za-z0-9_]+)(|@([A-Za-z0-9_]+))$/u ) || [];
+						const [ , c, , n ] = cmd.match( /^([A-Za-z0-9_]+)(|@([A-Za-z0-9_]+))$/u ) ?? [];
 						if ( ( n && ( n.toLowerCase() === String( that.#username ).toLowerCase() ) ) || !n ) {
 							param = param || "";
 
 							context.command = c;
 							context.param = param;
 
-							if ( typeof that._commands.get( c ) === "function" ) {
-								that._commands.get( c )( context, c, param || "" );
+							const func = that._commands.has( c ) ? that._commands.get( c ) : null;
+							if ( typeof func === "function" ) {
+								func( context, c, param );
 							}
 
-							that.emit( "group.command", context, c, param || "" );
-							that.emit( `group.command#${ c }`, context, param || "" );
-							that.emit( "event.command", context, c, param || "" );
-							that.emit( `event.command#${ c }`, context, param || "" );
+							that.emit( "group.command", context, c, param );
+							that.emit( `group.command#${ c }`, context, param );
+							that.emit( "event.command", context, c, param );
+							that.emit( `event.command#${ c }`, context, param );
 						}
 					}
 
@@ -410,22 +439,22 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 				} else {
 					const message: TT.Message = ctx.message;
 
-					if ( !await that.parseMedia( context, message ) ) {
+					if ( !that.parseMedia( context, message ) ) {
 						if ( "pinned_message" in message ) {
 							that.emit( "group.pin", {
 								from: {
-									id: message.from.id,
+									id: message.from?.id,
 									nick: that.getNick( message.from ),
-									username: message.from.username
+									username: message.from?.username
 								},
 								to: ctx.chat.id,
 								text: that.convertToText( message.pinned_message )
 							}, ctx );
 						} else if ( "left_chat_member" in message ) {
 							that.emit( "group.leave", ctx.chat.id, {
-								id: message.from.id,
+								id: message.from?.id,
 								nick: that.getNick( message.from ),
-								username: message.from.username
+								username: message.from?.username
 							}, {
 								id: message.left_chat_member.id,
 								nick: that.getNick( message.left_chat_member ),
@@ -433,9 +462,9 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 							}, ctx );
 						} else if ( "new_chat_members" in message ) {
 							that.emit( "group.join", ctx.chat.id, {
-								id: message.from.id,
+								id: message.from?.id,
 								nick: that.getNick( message.from ),
-								username: message.from.username
+								username: message.from?.username
 							}, {
 								id: message.new_chat_members[ 0 ].id,
 								nick: that.getNick( message.new_chat_members[ 0 ] ),
@@ -465,7 +494,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		} );
 	}
 
-	#setFile(
+	public setFile(
 		context: Context,
 		msg: ( TT.PhotoSize | TT.Sticker | TT.Audio | TT.Voice | TT.Video | TT.Document ) & {
 			mime_type?: string;
@@ -475,7 +504,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const that = this;
 
-		const file: File = {
+		const file: TelegramFile = {
 			client: "Telegram",
 			url: null,
 			async prepareFile() {
@@ -499,7 +528,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 					case "document":
 						return that._client.telegram.sendDocument( chat_id, msg.file_id, options );
 					default:
-						return null;
+						return Promise.resolve( null );
 				}
 			},
 			type: type,
@@ -510,12 +539,12 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		context.extra.files = [ file ];
 	}
 
-	public async parseMedia( context: Context, message: TT.Message ) {
+	public parseMedia( context: Context, message: TT.Message ) {
 		if ( "photo" in message ) {
 			let sz = 0;
 			for ( const p of message.photo ) {
-				if ( p.file_size > sz ) {
-					await this.#setFile( context, p, "photo" );
+				if ( p.file_size && p.file_size > sz ) {
+					this.setFile( context, p, "photo" );
 					context.text = `<photo: ${ p.width }x${ p.height }, ${ getFriendlySize( p.file_size ) }>`;
 					sz = p.file_size;
 				}
@@ -528,25 +557,25 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			context.extra.imageCaption = message.caption;
 			return true;
 		} else if ( "sticker" in message ) {
-			context.text = `${ message.sticker.emoji }<Sticker>`;
-			await this.#setFile( context, message.sticker, "sticker" );
+			context.text = `${ message.sticker.emoji ?? "" }<Sticker>`;
+			this.setFile( context, message.sticker, "sticker" );
 			context.extra.isImage = true;
 			return true;
 		} else if ( "audio" in message ) {
-			context.text = `<Audio: ${ message.audio.duration }", ${ getFriendlySize( message.audio.file_size ) }>`;
-			await this.#setFile( context, message.audio, "audio" );
+			context.text = `<Audio: ${ message.audio.duration }", ${ getFriendlySize( message.audio.file_size ?? 0 ) }>`;
+			this.setFile( context, message.audio, "audio" );
 			return true;
 		} else if ( "voice" in message ) {
-			context.text = `<Voice: ${ message.voice.duration }", ${ getFriendlySize( message.voice.file_size ) }>`;
-			await this.#setFile( context, message.voice, "voice" );
+			context.text = `<Voice: ${ message.voice.duration }", ${ getFriendlySize( message.voice.file_size ?? 0 ) }>`;
+			this.setFile( context, message.voice, "voice" );
 			return true;
 		} else if ( "video" in message ) {
-			context.text = `<Video: ${ message.video.width }x${ message.video.height }, ${ message.video.duration }", ${ getFriendlySize( message.video.file_size ) }>`;
-			await this.#setFile( context, message.video, "video" );
+			context.text = `<Video: ${ message.video.width }x${ message.video.height }, ${ message.video.duration }", ${ getFriendlySize( message.video.file_size ?? 0 ) }>`;
+			this.setFile( context, message.video, "video" );
 			return true;
 		} else if ( "document" in message ) {
-			context.text = `<File: ${ message.document.file_name }, ${ getFriendlySize( message.document.file_size ) }>`;
-			await this.#setFile( context, message.document, "document" );
+			context.text = `<File: ${ message.document.file_name ?? "" }, ${ getFriendlySize( message.document.file_size ?? 0 ) }>`;
+			this.setFile( context, message.document, "document" );
 			return true;
 		} else if ( "contact" in message ) {
 			context.text = `<Contact: ${ message.contact.first_name }, ${ message.contact.phone_number }>`;
@@ -562,11 +591,11 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		return false;
 	}
 
-	public getNick( user: TT.User ) {
+	public getNick( user?: TT.User ) {
 		if ( user ) {
-			const username = ( user.username || "" ).trim();
-			const firstname = ( user.first_name || "" ).trim() || ( user.last_name || "" ).trim();
-			const fullname = `${ user.first_name || "" } ${ user.last_name || "" }`.trim();
+			const username = ( user.username ?? "" ).trim();
+			const firstname = ( user.first_name || "" ).trim();
+			const fullname = `${ user.first_name || "" } ${ user.last_name ?? "" }`.trim();
 
 			if ( this.#nickStyle === "fullname" ) {
 				return fullname || username;
@@ -590,7 +619,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		} else if ( "game" in message ) {
 			return "<Game>";
 		} else if ( "sticker" in message ) {
-			return `${ message.sticker.emoji }<Sticker>`;
+			return `${ message.sticker.emoji ?? "" }<Sticker>`;
 		} else if ( "video" in message ) {
 			return "<Video>";
 		} else if ( "voice" in message ) {
@@ -618,48 +647,53 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		const fwdChat =
 		(
 			"forward_from_chat" in message &&
-			message.forward_from_chat.type === "channel"
+			message.forward_from_chat?.type === "channel"
 		) ?
 			message.forward_from_chat :
 			null;
 
 		if (
-			message.from.id === 777000 /* Telegram */ &&
-			fwdChat && fwdChat.type === "channel"
+			message.from?.id === 777000 /* Telegram */ && fwdChat
 		) {
 			return [ "Link Channel", fwdChat.id ];
 		} else if (
-			message.from.id === 1087968824 /* GroupAnonymousBot */
+			message.from?.id === 1087968824 /* GroupAnonymousBot */
 		) {
 			return [ "Group", message.chat.id ];
 		} else if (
-			message.from.id === 136817688 /* Channel Bot */ &&
+			message.from?.id === 136817688 /* Channel Bot */ &&
 			message.sender_chat
 		) {
 			return [ "Channel", message.sender_chat.id ];
 		}
 
-		return [ false, message.from.id ];
+		return [ false, message.from?.id ?? 0 ];
 	}
 
-	public addCommand( command: string, func: Command<TContext> ) {
-		// 自動過濾掉 command 中的非法字元
-		const cmd = command.replace( /[^A-Za-z0-9_]/gu, "" );
-		return super.addCommand( cmd, func );
+	public addCommand( command: string, func?: Command<MessageTContext> ) {
+		return super.addCommand(
+			// 自動過濾掉 command 中的非法字元
+			command.replace( /[^A-Za-z0-9_]/gu, "" ),
+			func as Command<TContext>
+		);
 	}
 
 	public aliasCommand( command: string, rawCommand: string ): this {
-		const cmd = command.replace( /[^A-Za-z0-9_]/gu, "" );
-		const rwcmd = rawCommand.replace( /[^A-Za-z0-9_]/gu, "" );
-		return super.aliasCommand( cmd, rwcmd );
+		return super.aliasCommand(
+			// 自動過濾掉 command 中的非法字元
+			command.replace( /[^A-Za-z0-9_]/gu, "" ),
+			rawCommand.replace( /[^A-Za-z0-9_]/gu, "" )
+		);
 	}
 
 	public deleteCommand( command: string ) {
-		const cmd = command.replace( /[^A-Za-z0-9_]/gu, "" );
-		return super.deleteCommand( cmd );
+		return super.deleteCommand(
+			// 自動過濾掉 command 中的非法字元
+			command.replace( /[^A-Za-z0-9_]/gu, "" )
+		);
 	}
 
-	public say( target: string | number, message: string, options?: TelegramSendMessageOpipons ): Promise<TT.Message> {
+	public say( target: string | number, message: string, options?: TelegramSendMessageOptions ): Promise<TT.Message> {
 		if ( !this._enabled ) {
 			throw new Error( "Handler not enabled" );
 		} else {
@@ -670,9 +704,9 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 	public sayWithHTML(
 		target: string | number,
 		message: string,
-		options?: TelegramSendMessageOpipons
+		options?: TelegramSendMessageOptions
 	): Promise<TT.Message> {
-		const options2 = copyObject( options || {} );
+		const options2 = copyObject( options ?? {} );
 		options2.parse_mode = "HTML";
 		return this.say( target, message, options2 );
 	}
@@ -699,13 +733,13 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 	#prepareReplyOptions<T extends Extras = TGT.ExtraReplyMessage>(
 		context: Context<TContext>,
 		replyMsgId: number,
-		options?: TelegramSendMessageOpipons<T>
-	): TelegramSendMessageOpipons<T> {
-		if ( context._rawdata && ( context._rawdata.message || context._rawdata.channelPost ) ) {
+		options?: TelegramSendMessageOptions<T>
+	): TelegramSendMessageOptions<T> {
+		if ( context._rawdata && ( context._rawdata.message || context._rawdata.channelPost ) && replyMsgId ) {
 			if ( context.isPrivate ) {
-				return options;
+				return options ?? {};
 			} else {
-				const options2 = copyObject<TelegramSendMessageOpipons<T>>( options || {} );
+				const options2 = copyObject<TelegramSendMessageOptions<T>>( options ?? {} );
 				options2.reply_to_message_id = replyMsgId;
 				options2.allow_sending_without_reply = true;
 				return options2;
@@ -718,24 +752,24 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 	public reply(
 		context: Context<TContext>,
 		message: string,
-		options?: TelegramSendMessageOpipons
+		options?: TelegramSendMessageOptions
 	): Promise<TT.Message> {
 		return this.say(
 			context.to,
 			message,
-			this.#prepareReplyOptions( context, context._rawdata.message.message_id, options )
+			this.#prepareReplyOptions( context, context._rawdata?.message?.message_id ?? 0, options )
 		);
 	}
 
 	public replyWithPhoto(
 		context: Context<TContext>,
 		photo: TT.InputFile,
-		options?: TelegramSendMessageOpipons<TGT.ExtraPhoto>
+		options?: TelegramSendMessageOptions<TGT.ExtraPhoto>
 	): Promise<TT.Message.PhotoMessage> {
 		return this._client.telegram.sendPhoto(
 			context.to,
 			photo,
-			this.#prepareReplyOptions( context, context._rawdata.message.message_id, options )
+			this.#prepareReplyOptions( context, context._rawdata?.message?.message_id ?? 0, options )
 		);
 	}
 
@@ -783,9 +817,12 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			startPromise.then( function () {
 				that.emit( "event.ready", that._client );
 			} );
+
+			return startPromise;
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/require-await
 	public async stop() {
 		if ( this._started ) {
 			this._started = false;

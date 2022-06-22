@@ -111,9 +111,9 @@ interface TransportServemediaImgur extends KeysRequired<TransportServemediaBase,
 }
 
 export type TransportServemedia = |
-	TransportServemediaNone |
-	TransportServemediaImgur | TransportServemediaNichiCo | TransportServemediaSmMs |
-	TransportServemediaSelf | TransportServemediaLinx | TransportServemediaUguu;
+TransportServemediaNone |
+TransportServemediaImgur | TransportServemediaNichiCo | TransportServemediaSmMs |
+TransportServemediaSelf | TransportServemediaLinx | TransportServemediaUguu;
 
 let cnf: TransportConfig;
 let servemedia: TransportServemedia;
@@ -127,15 +127,16 @@ const USERAGENT = `LilyWhiteBot/${ pkg.version } (${ pkg.repository })`;
  * @param {string} name 文件名
  * @return {string} 新文件名
  */
-function generateFileName( url: string, name: string ): string {
-	let extName = path.extname( name || "" );
+function generateFileName( url?: string, name?: string ): string {
+	let extName = path.extname( name ?? "" );
 	if ( extName === "" ) {
-		extName = path.extname( url || "" );
+		extName = path.extname( url ?? "" );
 	}
 	if ( extName === ".webp" ) {
 		extName = ".png";
 	}
-	return crypto.createHash( "md5" ).update( name || ( Math.random() ).toString() ).digest( "hex" ) + extName;
+	extName = ".txt";
+	return crypto.createHash( "md5" ).update( name ?? ( Math.random() ).toString() ).digest( "hex" ) + extName;
 }
 
 /**
@@ -165,7 +166,7 @@ function convertFileType( type: string ): string {
  * @return {Promise}
  */
 function getFileStream( file: File ): stream.Readable {
-	const filePath = file.url || file.path;
+	const filePath = file.url ?? file.path ?? "";
 	let fileStream: stream.Stream;
 
 	if ( file.url ) {
@@ -212,14 +213,15 @@ function pipeFileStream<P extends NodeJS.WritableStream>( file: File, pipe: P ) 
  * 儲存至本機快取
  */
 async function uploadToCache( file: File ) {
-	const targetName = generateFileName( file.url || file.path, file.id );
-	const targetPath = path.join( servemedia.cachePath, targetName );
+	const targetName = generateFileName( file.url ?? file.path, file.id );
+	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+	const targetPath = path.join( servemedia.cachePath!, targetName );
 	const writeStream = fs.createWriteStream( targetPath )
 		.on( "error", function ( e ) {
 			throw e;
 		} );
 	await pipeFileStream( file, writeStream );
-	return servemedia.serveUrl + targetName;
+	return String( servemedia.serveUrl ) + targetName;
 }
 
 /*
@@ -228,13 +230,13 @@ async function uploadToCache( file: File ) {
 function uploadToHost( file: File ) {
 	return new Promise<string>( function ( resolve, reject ) {
 		const requestOptions: Partial<request.CoreOptions & request.UrlOptions> = {
-			timeout: servemedia.timeout || 3000,
+			timeout: servemedia.timeout ?? 3000,
 			headers: {
-				"User-Agent": servemedia.userAgent || USERAGENT
+				"User-Agent": servemedia.userAgent ?? USERAGENT
 			}
 		};
 
-		const name = generateFileName( file.url || file.path, file.id );
+		const name = generateFileName( file.url ?? file.path, file.id );
 
 		// p4: reject .exe (complaint from the site admin)
 		if ( path.extname( name ) === ".exe" ) {
@@ -244,13 +246,13 @@ function uploadToHost( file: File ) {
 
 		const pendingFileStream = getFileStream( file );
 
-		const buf = [];
+		const buf: unknown[] = [];
 		pendingFileStream
-			.on( "data", function ( d ) {
+			.on( "data", function ( d: unknown ) {
 				return buf.push( d );
 			} )
 			.on( "end", function () {
-				const pendingFile = Buffer.concat( buf );
+				const pendingFile = Buffer.concat( buf as Uint8Array[] );
 
 				switch ( servemedia.type ) {
 					case "vim-cn":
@@ -272,7 +274,9 @@ function uploadToHost( file: File ) {
 						} else {
 							requestOptions.url = servemedia.imgur.apiUrl + "/upload";
 						}
-						requestOptions.headers.Authorization = `Client-ID ${ servemedia.imgur.clientId }`;
+						requestOptions.headers = Object.assign( requestOptions.headers ?? {}, {
+							Authorization: `Client-ID ${ servemedia.imgur.clientId }`
+						} );
 						requestOptions.json = true;
 						requestOptions.formData = {
 							type: "file",
@@ -311,21 +315,24 @@ function uploadToHost( file: File ) {
 							switch ( servemedia.type ) {
 								case "vim-cn":
 								case "vimcn":
-									resolve( body.trim().replace( "http://", "https://" ) );
+									resolve( String( body ).trim().replace( "http://", "https://" ) );
 									break;
 								case "uguu":
-									resolve( body.trim() );
+									resolve( String( body ).trim() );
 									break;
 								case "imgur":
+									// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 									if ( body && !body.success ) {
-										reject( new Error( `Imgur return: ${ body.data.error }` ) );
+										// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+										reject( new Error( `Imgur return: ${ body?.data?.error as string | undefined ?? JSON.stringify( body ) }` ) );
 									} else {
-										resolve( body.data.link );
+										// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+										resolve( body?.data?.link as string );
 									}
 									break;
 							}
 						} else {
-							reject( new Error( error ) );
+							reject( new Error( String( error ) ) );
 						}
 					} );
 			} );
@@ -337,20 +344,21 @@ function uploadToHost( file: File ) {
  */
 function uploadToLinx( file: File ) {
 	return new Promise<string>( function ( resolve, reject ) {
-		const name = generateFileName( file.url || file.path, file.id );
+		const name = generateFileName( file.url ?? file.path, file.id );
 
 		pipeFileStream( file, request.put( {
-			url: servemedia.linxApiUrl + name,
+			url: String( servemedia.linxApiUrl ) + name,
 			headers: {
-				"User-Agent": servemedia.userAgent || USERAGENT,
+				"User-Agent": servemedia.userAgent ?? USERAGENT,
 				"Linx-Randomize": "yes",
 				Accept: "application/json"
 			}
 		}, function ( error, response, body ) {
 			if ( !error && response.statusCode === 200 ) {
-				resolve( JSON.parse( body ).direct_url );
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+				resolve( JSON.parse( body as string ).direct_url as string );
 			} else {
-				reject( new Error( error ) );
+				reject( new Error( String( error ) ) );
 			}
 		} ) ).catch( function ( err ) {
 			reject( err );
@@ -362,7 +370,7 @@ function uploadToLinx( file: File ) {
  * 決定檔案去向
  */
 async function uploadFile( file: File ): Promise<UploadFile | null> {
-	let url: string;
+	let url: string | undefined;
 	const fileType = convertFileType( file.type );
 
 	switch ( servemedia.type ) {
@@ -392,7 +400,7 @@ async function uploadFile( file: File ): Promise<UploadFile | null> {
 
 	}
 
-	if ( url ) {
+	if ( typeof url !== "undefined" ) {
 		return {
 			type: fileType,
 			url: url
@@ -404,22 +412,22 @@ async function uploadFile( file: File ): Promise<UploadFile | null> {
 
 export function init( bridge: TransportBridge, _cnf: TransportConfig ) {
 	cnf = _cnf;
-	servemedia = cnf.options.servemedia || {
+	servemedia = cnf.options.servemedia ?? {
 		type: "none"
 	};
 
 	bridge.addHook( "bridge.send", async function ( msg ) {
 		// 上传文件
-		// p4: dont bother with files from somewhere without bridges in config
+		// p4: don't bother with files from somewhere without bridges in config
 		if (
-			msg.extra.clients > 1 &&
+			( msg.extra.clients || 0 ) > 1 &&
 			msg.extra.files &&
 			servemedia.type && servemedia.type !== "none"
 		) {
-			if ( !( msg.extra.uploads && msg.extra.uploads.length ) ) {
+			if ( !( msg.extra.uploads?.length ) ) {
 				return;
 			}
-			const promises: Promise<UploadFile>[] = [];
+			const promises: Promise<UploadFile | null>[] = [];
 			const fileCount = msg.extra.files.length;
 
 			// 将聊天消息附带文件上传到服务器
@@ -450,10 +458,12 @@ export function init( bridge: TransportBridge, _cnf: TransportConfig ) {
 				return x;
 			} );
 			for ( const [ index, upload ] of uploads.entries() ) {
-				winston.debug( `[transport/file] <FileUploader> #${ msg.msgId } File ${ index + 1 }/${ uploads.length } (${ upload.type }): ${ upload.url }` );
+				winston.debug( `[transport/file] <FileUploader> #${ msg.msgId } File ${ index + 1 }/${ uploads.length } (${ upload?.type ?? "undefined" }): ${ upload?.url ?? "undefined" }` );
 			}
 
-			msg.extra.uploads = uploads;
+			msg.extra.uploads = uploads.filter( function ( file ) {
+				return file;
+			} ) as UploadFile[];
 		} else {
 			msg.extra.uploads = [];
 		}

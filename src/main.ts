@@ -9,15 +9,18 @@
 import moduleAlias = require( "module-alias" );
 import path = require( "path" );
 import winston = require( "winston" );
-moduleAlias.addAliases( {
-	"@app": path.normalize( __dirname ),
-	"@package.json": path.join( __dirname, "..", "package.json" ),
-	"@config": path.join( __dirname, "..", "config" ),
-	"@plugins": path.join( __dirname, "..", "plugins" )
-} );
+if ( __filename.endsWith( ".js" ) ) {
+	moduleAlias.addAliases( {
+		"@app": path.normalize( __dirname ),
+		"@package.json": path.join( __dirname, "..", "package.json" ),
+		"@config": path.join( __dirname, "..", "config" ),
+		"@plugins": path.join( __dirname, "..", "plugins" )
+	} );
+}
+import "@app/references";
 
 import type { ClientConfigs, ConfigTS, PluginConfigs } from "@config/config.type";
-import type { MakeCallableConstructor, PluginManager } from "@app/bot.type";
+import type { MakeCallableConstructor, PluginManager } from "@app/utiltype";
 
 import pkg = require( "@package.json" );
 import { Context } from "@app/lib/handlers/Context";
@@ -49,7 +52,7 @@ import * as uidParser from "@app/lib/uidParser";
 	const logFormat = winston.format( function ( info ) {
 		info.level = info.level.toUpperCase();
 		if ( info.stack ) {
-			info.message = `${ info.message }\n${ info.stack }`;
+			info.message = `${ info.message }\n${ info.stack as string }`;
 		}
 		return info;
 	} );
@@ -61,7 +64,9 @@ import * as uidParser from "@app/lib/uidParser";
 			winston.format.timestamp( {
 				format: "YYYY-MM-DD HH:mm:ss"
 			} ),
-			winston.format.printf( ( info ) => `${ info.timestamp } [${ info.level }] ${ info.message }` )
+			winston.format.printf( function ( info ) {
+				return `${ info.timestamp as string } [${ info.level }] ${ info.message }`;
+			} )
 		)
 	} ) );
 
@@ -79,11 +84,12 @@ import * as uidParser from "@app/lib/uidParser";
 	// 忽略
 	} );
 
-	const config: ConfigTS = loadConfig( "config" );
+	const config: ConfigTS | null = loadConfig( "config" );
 	if ( config === null ) {
 		winston.error( "No config file found. Exit." );
 		// eslint-disable-next-line no-process-exit
 		process.exit( 1 );
+	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 	} else if ( config.configVersion !== 2 ) {
 		winston.error( "You should update config to configVersion 2." );
 		// eslint-disable-next-line no-process-exit
@@ -91,13 +97,13 @@ import * as uidParser from "@app/lib/uidParser";
 	}
 
 	// 日志等级、文件设置
-	if ( config.logging && config.logging.level ) {
+	if ( config.logging?.level ) {
 		winston.level = config.logging.level;
 	} else {
 		winston.level = "info";
 	}
 
-	if ( config.logging && config.logging.logfile ) {
+	if ( config.logging?.logfile ) {
 		const files = new winston.transports.File( {
 			filename: config.logging.logfile,
 			format: winston.format.combine(
@@ -105,7 +111,9 @@ import * as uidParser from "@app/lib/uidParser";
 				winston.format.timestamp( {
 					format: "YYYY-MM-DD HH:mm:ss"
 				} ),
-				winston.format.printf( ( info ) => `${ info.timestamp } [${ info.level }] ${ info.message }` )
+				winston.format.printf( function ( info ) {
+					return `${ info.timestamp as string } [${ info.level }] ${ info.message }`;
+				} )
 			)
 		} );
 		winston.add( files );
@@ -119,8 +127,7 @@ import * as uidParser from "@app/lib/uidParser";
 	// 启动各机器人
 	const enabledClients: string[] = [];
 	for ( const type of allHandlers.keys() ) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		if ( ( config.clients[ type as keyof ClientConfigs ]as any )?.enable ) {
+		if ( ( ( config.clients?.[ type as keyof ClientConfigs ] || {} ) as { enable?: boolean; } ).enable ) {
 			enabledClients.push( type );
 		}
 	}
@@ -134,7 +141,8 @@ import * as uidParser from "@app/lib/uidParser";
 	for ( const client of enabledClients ) {
 		winston.info( `Starting ${ client } bot...` );
 
-		const options = config.clients[ client as keyof ClientConfigs ];
+		const options = config.clients?.[ client as keyof ClientConfigs ];
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 		const Handler: MakeCallableConstructor<typeof MessageHandler> = ( await import( `@app/lib/handlers/${ allHandlers.get( client ) }` ) ).default;
 		const handler = new Handler( options );
 		handler.start();
@@ -142,9 +150,8 @@ import * as uidParser from "@app/lib/uidParser";
 		pluginManager.handlers.set( client, handler );
 		pluginManager.handlerClasses.set( client, {
 			object: Handler,
-			options: options
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		} as any );
+			options: options as unknown as Record<string, unknown>
+		} );
 
 		winston.info( `${ client } bot has started.` );
 	}
@@ -152,14 +159,14 @@ import * as uidParser from "@app/lib/uidParser";
 	uidParser.setHandlers( pluginManager.handlers );
 
 	pluginManager.botAdmins.push(
-		...( config.botAdmins || [] )
+		...( config.botAdmins ?? [] )
 			.map( uidParser.parseUID )
 			.map( function ( ast ) {
 				return ast.uid;
 			} )
 			.filter( function ( uid ) {
 				return uid;
-			} )
+			} ) as string[]
 	);
 
 	/**
@@ -170,7 +177,7 @@ import * as uidParser from "@app/lib/uidParser";
 	pluginManager.config = config;
 	let hasLoadPlugin = false;
 	for ( const plugin in config.plugins ) {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
 		if ( !( config.plugins[ plugin as keyof PluginConfigs ]as any )?.enable ) {
 			winston.error( `Skip plugin: ${ plugin }` );
 			continue;
@@ -178,10 +185,14 @@ import * as uidParser from "@app/lib/uidParser";
 		hasLoadPlugin = true;
 		try {
 			winston.info( `Loading plugin: ${ plugin }` );
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 			const p = await ( ( await import( `@plugins/${ plugin }` ) ).default( pluginManager, config.plugins[ plugin ] || {} ) );
 			if ( p ) {
+				// @ts-expect-error TS2322
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				pluginManager.plugins[ plugin ] = p;
 			} else {
+				// @ts-expect-error TS2322
 				pluginManager.plugins[ plugin ] = true;
 			}
 		} catch ( ex ) {

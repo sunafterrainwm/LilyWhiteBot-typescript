@@ -4,7 +4,7 @@ import color = require( "irc-colors" );
 import winston = require( "winston" );
 
 import { BaseEvents, MessageHandler } from "@app/lib/handlers/MessageHandler";
-import { Context } from "@app/lib/handlers/Context";
+import { Context, RawDataContext } from "@app/lib/handlers/Context";
 import delay from "@app/lib/delay";
 
 export interface IRCConfig {
@@ -57,26 +57,26 @@ declare module "@config/config.type" {
 }
 
 export interface IRCEvents extends BaseEvents<irc.Client, irc.IMessage> {
-	"event.nick"( oldnick: string, newnick: string, channels: string[], message: irc.IMessage ): void;
+	"event.nick"( oldNick: string, newNick: string, channels: string[], message: irc.IMessage ): void;
 	"event.quit"( nick: string, reason: string, channels: string[], message: irc.IMessage ): void;
 	"event.kill"( nick: string, reason: string, channels: string[], message: irc.IMessage ): void;
 	"event.registered"( message: irc.IMessage ): void;
 
-	"channel.text"( context: Context<irc.IMessage> ): void;
-	"channel.command"( context: Context<irc.IMessage>, comand: string, param: string ): void;
-	[ key: `channel.command#${ string }` ]: ( context: Context<irc.IMessage>, param: string ) => void;
+	"channel.text"( context: RawDataContext<irc.IMessage> ): void;
+	"channel.command"( context: RawDataContext<irc.IMessage>, command: string, param: string ): void;
+	[ key: `channel.command#${ string }` ]: ( context: RawDataContext<irc.IMessage>, param: string ) => void;
 	"channel.join"( channel: string, nick: string, message: irc.IMessage ): void;
 	"channel.part"( channel: string, nick: string, reason: string, message: irc.IMessage ): void;
 	"channel.kick"( channel: string, nick: string, by: string, reason: string, message: irc.IMessage ): void;
 	"channel.topic"( channel: string, topic: string, nick: string, message: irc.IMessage ): void;
 }
 
-type Me = {
+interface Me {
 	nick: string;
-	userName: string;
-	realName: string;
+	userName: string | undefined;
+	realName: string | undefined;
 	chans: irc.IChans;
-};
+}
 
 /*
  * 使用通用接口处理 IRC 消息
@@ -97,7 +97,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		return this.#me;
 	}
 
-	readonly #splitsep: {
+	readonly #splitSep: {
 		prefix: string;
 		postfix: string;
 	} = {
@@ -106,17 +106,17 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		};
 
 	public get splitPrefix(): string {
-		return this.#splitsep.prefix;
+		return this.#splitSep.prefix;
 	}
 	public set splitPrefix( p: string ) {
-		this.#splitsep.prefix = p;
+		this.#splitSep.prefix = p;
 	}
 
 	public get splitPostfix(): string {
-		return this.#splitsep.postfix;
+		return this.#splitSep.postfix;
 	}
 	public set splitPostfix( p: string ) {
-		this.#splitsep.postfix = p;
+		this.#splitSep.postfix = p;
 	}
 
 	public get nick(): string {
@@ -131,20 +131,26 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		super( config );
 
 		// 加载机器人
-		const botConfig: Partial<IRCConfig[ "bot" ]> = config.bot;
-		const ircOptions: Partial<IRCConfig[ "options" ]> = config.options || {};
+		const botConfig: Partial<IRCConfig[ "bot" ]> = config.bot ?? {};
+		const ircOptions: Partial<IRCConfig[ "options" ]> = config.options ?? {};
+
+		if ( !botConfig.server ) {
+			throw new Error( "IRC Server isn't set." );
+		} else if ( !botConfig.nick ) {
+			throw new Error( "IRC Nick isn't set." );
+		}
 		const client = new irc.Client( botConfig.server, botConfig.nick, {
 			userName: botConfig.userName,
 			realName: botConfig.realName,
 			port: botConfig.port,
 			autoRejoin: true,
-			channels: botConfig.channels || [],
-			secure: botConfig.secure || false,
-			floodProtection: botConfig.floodProtection || true,
-			floodProtectionDelay: botConfig.floodProtectionDelay || 300,
+			channels: botConfig.channels ?? [],
+			secure: botConfig.secure ?? false,
+			floodProtection: botConfig.floodProtection ?? true,
+			floodProtectionDelay: botConfig.floodProtectionDelay ?? 300,
 			sasl: botConfig.sasl,
 			password: botConfig.sasl_password,
-			encoding: botConfig.encoding || "UTF-8",
+			encoding: botConfig.encoding ?? "UTF-8",
 			autoConnect: false
 		} );
 
@@ -152,7 +158,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		const that = this;
 
 		this._client = client;
-		this.#maxLines = ircOptions.maxLines || 4;
+		this.#maxLines = ircOptions.maxLines ?? 4;
 
 		this.#me = {
 			nick: this._client.nick,
@@ -179,6 +185,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		} );
 
 		client.on( "error", function ( message ) {
+			// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 			winston.error( `[IC] IRCBot error: ${ message.command } (${ ( message.args || [] ).join( " " ) })` );
 		} );
 
@@ -187,7 +194,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 			if (
 				!that._enabled ||
 				from === client.nick ||
-				ircOptions.ignore.map( function ( name ) {
+				ircOptions.ignore?.map( function ( name ) {
 					return new RegExp( `^${ lodash.escapeRegExp( name ) }\\d*$` );
 				} ).filter( function ( reg ) {
 					return reg.exec( from );
@@ -197,6 +204,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 			}
 
 			// 去除訊息中的格式字元
+
 			const plainText: string = color.stripColorsAndStyle( text );
 
 			const context = new Context( {
@@ -220,14 +228,15 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 
 			// 檢查是不是命令
 			// eslint-disable-next-line prefer-const
-			let [ , cmd, , param ] = plainText.match( /^!([A-Za-z0-9_]+)\b(\s+(.*)|\s*)$/u ) || [];
+			let [ , cmd, , param ] = plainText.match( /^!([A-Za-z0-9_]+)\b(\s+(.*)|\s*)$/u ) ?? [];
 			if ( cmd ) {
 				param = ( param || "" ).trim();
 				context.command = cmd;
 				context.param = param;
 
-				if ( typeof that._commands.get( cmd ) === "function" ) {
-					that._commands.get( cmd )( context, cmd, param );
+				const func = that._commands.has( cmd ) ? that._commands.get( cmd ) : null;
+				if ( typeof func === "function" ) {
+					func( context, cmd, param );
 				}
 
 				that.emit( "channel.command", context, cmd, param );
@@ -274,6 +283,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		} );
 	}
 
+	// eslint-disable-next-line @typescript-eslint/require-await
 	public async say( target: string, message: string, options: {
 		isAction?: boolean;
 		doNotSplitText?: boolean;
@@ -327,7 +337,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 		const lines: string[] = [];
 		let line: string[] = [];
 		let bytes = 0;
-		const seplen: number = this.#splitsep.prefix.length + this.#splitsep.postfix.length;
+		const seplen: number = this.#splitSep.prefix.length + this.#splitSep.postfix.length;
 
 		if ( maxBytesPerLine < 10 ) {
 			return [];
@@ -342,7 +352,7 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 					break;
 				}
 			} else {
-				const code = ch.codePointAt( 0 );
+				const code = ch.codePointAt( 0 ) ?? 0;
 				const b = ( code <= 0x7F ) ? 1 : (
 					( code <= 0x7FF ) ? 2 : (
 						( code <= 0xFFFF ) ? 3 : (
@@ -352,9 +362,9 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 				);
 
 				if ( bytes + b > maxBytesPerLine - seplen ) {
-					line.push( this.#splitsep.postfix );
+					line.push( this.#splitSep.postfix );
 					lines.push( line.join( "" ) );
-					line = [ this.#splitsep.prefix, ch ];
+					line = [ this.#splitSep.prefix, ch ];
 					bytes = b;
 					if ( maxLines > 0 && lines.length === maxLines ) {
 						lines.push( line.join( "" ) );
@@ -392,19 +402,29 @@ export class IRCMessageHandler extends MessageHandler<irc.Client, irc.IMessage, 
 	}
 
 	public async start() {
-		if ( !this._started ) {
-			this._started = true;
-			this._client.connect();
-		}
+		// eslint-disable-next-line @typescript-eslint/no-this-alias
+		const that = this;
+		return new Promise<void>( function ( resolve ) {
+			if ( !that._started ) {
+				that._started = true;
+				that._client.connect( undefined, function () {
+					resolve();
+				} );
+			}
+		} );
 	}
 
 	public async stop() {
-		if ( !this._started ) {
-			this._started = false;
-			this._client.disconnect( "disconnect by operator.", function () {
-				// ignore
-			} );
-		}
+		// eslint-disable-next-line @typescript-eslint/no-this-alias
+		const that = this;
+		return new Promise<void>( function ( resolve ) {
+			if ( !that._started ) {
+				that._started = false;
+				that._client.disconnect( "disconnect by operator.", function () {
+					resolve();
+				} );
+			}
+		} );
 	}
 }
 

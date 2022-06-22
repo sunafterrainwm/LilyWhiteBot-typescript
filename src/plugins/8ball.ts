@@ -7,13 +7,13 @@
 import winston = require( "winston" );
 
 import type { Context } from "@app/lib/handlers/Context";
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
 		// only for fallback
 		// eslint-disable-next-line @typescript-eslint/ban-types
-		"8ball": {}
+		"8ball": {};
 	}
 }
 
@@ -25,7 +25,7 @@ const eightballs = [ "As I see it, yes", "It is certain", "It is decidedly so", 
 	"In your dreams", "My reply is no", "My sources say no", "Outlook not so good", "Very doubtful" ];
 
 const eightball: PluginExport<"8ball"> = function ( pluginManager ) {
-	const bridge = pluginManager.plugins?.transport;
+	const bridge = pluginManager.plugins.transport;
 
 	function sendEightball( context: Context ) {
 		const result = eightballs[ Math.random() * eightballs.length ];
@@ -34,7 +34,8 @@ const eightball: PluginExport<"8ball"> = function ( pluginManager ) {
 		winston.debug( `[8ball.js] Msg #${ context.msgId } 8ball: ${ result }` );
 
 		if ( bridge && !context.isPrivate ) {
-			bridge.send( new pluginManager.global.BridgeMsg( context, {
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			bridge.send( new pluginManager.global.BridgeMsg!( context, {
 				text: `8ball: ${ result }`,
 				isNotice: true
 			} ) );

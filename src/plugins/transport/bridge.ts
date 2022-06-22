@@ -1,14 +1,14 @@
 import winston = require( "winston" );
 
-import type { GetChild, handlers, MessageHandler } from "@app/bot.type";
+import type { GetChild, Handlers, MessageHandler } from "@app/utiltype";
 import type { Context, RawMsg } from "@app/lib/handlers/Context";
-import type { TransportConfig } from "@app/plugins/transport";
+import type { TransportConfig, TransportMessageStyle } from "@app/plugins/transport";
 
 import { parseUID } from "@app/lib/uidParser";
 import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
 export interface TransportProcessor<N extends string = ""> {
-	init( handler: GetChild<handlers, N, MessageHandler>, config: TransportConfig ): Promise<void>;
+	init( handler: GetChild<Handlers, N, MessageHandler>, config: TransportConfig ): Promise<void>;
 	receive( msg: BridgeMsg ): Promise<void>;
 }
 
@@ -16,9 +16,9 @@ export interface TransportProcessor<N extends string = ""> {
 export type TransportHook<A extends any[] = any[], T = any> = ( ...args: A ) => T | Promise<T>;
 
 export interface TransportHooks extends Record<string, TransportHook> {
-	"bridge.receive": ( msg: BridgeMsg ) => Promise<void>;
-	"bridge.send": ( msg: BridgeMsg ) => Promise<void>;
-	"bridge.sent": ( msg: BridgeMsg ) => Promise<void>;
+	"bridge.receive": ( msg: BridgeMsg ) => void | Promise<void>;
+	"bridge.send": ( msg: BridgeMsg ) => void | Promise<void>;
+	"bridge.sent": ( msg: BridgeMsg ) => void | Promise<void>;
 }
 
 export type TransportMap = Record<string, Record<string, {
@@ -32,7 +32,7 @@ export type TransportAlias = Record<string, {
 
 export const processors = new Map<string, TransportProcessor>();
 export const hooks: Record<string | number, Map<number, TransportHook>> = {};
-export const hooks2 = new WeakMap<TransportHook, { event: keyof TransportHooks, priority: number }>();
+export const hooks2 = new WeakMap<TransportHook, { event: keyof TransportHooks; priority: number; }>();
 
 export const map: TransportMap = {};
 export const aliases: TransportAlias = {};
@@ -42,7 +42,7 @@ export const aliases: TransportAlias = {};
 
 function getBridgeMsg<R extends RawMsg>( msg: Context<R> ): BridgeMsg<R> {
 	if ( msg instanceof BridgeMsg ) {
-		return msg;
+		return msg as BridgeMsg<R>;
 	} else {
 		return new BridgeMsg( {}, msg );
 	}
@@ -50,20 +50,23 @@ function getBridgeMsg<R extends RawMsg>( msg: Context<R> ): BridgeMsg<R> {
 
 function prepareMsg( msg: BridgeMsg ) {
 	// 檢查是否有傳送目標
-	const alltargets = map[ msg.to_uid ];
-	const targets = [];
-	for ( const t in alltargets ) {
-		if ( !alltargets[ t ].disabled ) {
+	const allTargets = map[ msg.to_uid ];
+	const targets: string[] = [];
+	for ( const t in allTargets ) {
+		if ( !allTargets[ t ].disabled ) {
 			targets.push( t );
 		}
 	}
 
 	// 向 msg 中加入附加訊息
 	msg.extra.clients = targets.length + 1;
-	msg.extra.mapto = targets;
-	if ( aliases[ msg.to_uid ] ) {
+	msg.extra.mapTo = targets;
+	if ( msg.to_uid in aliases ) {
 		msg.extra.clientName = aliases[ msg.to_uid ];
 	} else {
+		if ( !msg.handler ) {
+			throw new Error( "msg.handler isn't exist." );
+		}
 		msg.extra.clientName = {
 			shortname: msg.handler.id,
 			fullname: msg.handler.type
@@ -85,11 +88,11 @@ export function addHook<V extends keyof TransportHooks>( event: V, func: Transpo
 	// Event:
 	// bridge.send：剛發出，尚未準備傳話
 	// bridge.receive：已確認目標
-	if ( !hooks[ event ] ) {
+	if ( !( event in hooks ) ) {
 		hooks[ event ] = new Map();
 	}
 	const m = hooks[ event ];
-	if ( m && typeof func === "function" ) {
+	if ( typeof func === "function" ) {
 		let p = priority;
 		while ( m.has( p ) ) {
 			p++;
@@ -100,18 +103,19 @@ export function addHook<V extends keyof TransportHooks>( event: V, func: Transpo
 }
 export function deleteHook( func: TransportHook ) {
 	if ( hooks2.has( func ) ) {
-		const h = hooks2.get( func );
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		const h = hooks2.get( func )!;
 		hooks[ h.event ].delete( h.priority );
 		hooks2.delete( func );
 	}
 }
 export function emitHook<V extends keyof TransportHooks>( event: V, ...args: Parameters<TransportHooks[V]> ) {
 	let r = Promise.resolve();
-	if ( hooks[ event ] ) {
+	if ( event in hooks ) {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		for ( const [ _, hook ] of hooks[ event ] ) {
-			r = r.then( function () {
-				return hook( ...args );
+			r = r.then( async function () {
+				await hook( ...args );
 			} );
 		}
 	}
@@ -130,7 +134,14 @@ export async function send<R extends RawMsg>( m: BridgeMsg<R> | Context<R> ) {
 
 	try {
 		await prepareMsg( msg );
-	} catch {
+	} catch ( err ) {
+		process.nextTick( function () {
+			throw err;
+		} );
+		return false;
+	}
+
+	if ( !msg.extra.mapTo ) {
 		return false;
 	}
 
@@ -138,14 +149,19 @@ export async function send<R extends RawMsg>( m: BridgeMsg<R> | Context<R> ) {
 	// 所有訊息被拒絕傳送 reject()
 	// Hook 需自行處理異常
 	// 向對應目標的 handler 觸發 exchange
-	const promises = [];
-	let allresolved = true;
-	for ( const t of msg.extra.mapto ) {
+	const promises: Promise<void>[] = [];
+	let allResolved = true;
+	for ( const t of msg.extra.mapTo ) {
 		const msg2 = new BridgeMsg( msg, {
 			to_uid: t
 		} );
 		const new_uid = parseUID( t );
 		const client = new_uid.client;
+
+		if ( !client ) {
+			winston.warn( `[transport/bridge] <BotTransport> #${ currMsgId } -x-> ${ t }: Client is null` );
+			return;
+		}
 
 		promises.push( emitHook( "bridge.receive", msg2 ).then( function () {
 			const processor = processors.get( client );
@@ -160,7 +176,7 @@ export async function send<R extends RawMsg>( m: BridgeMsg<R> | Context<R> ) {
 	try {
 		await Promise.all( promises );
 	} catch ( e ) {
-		allresolved = false;
+		allResolved = false;
 		winston.error( "[transport/bridge] <BotSend> Rejected: ", e );
 	}
 	if ( promises.length > 0 ) {
@@ -171,7 +187,7 @@ export async function send<R extends RawMsg>( m: BridgeMsg<R> | Context<R> ) {
 	} else {
 		winston.debug( `[transport/bridge] <BotSend> #${ currMsgId } has no targets. Ignored.` );
 	}
-	return allresolved;
+	return allResolved;
 }
 
 export function truncate( str: string, maxLen = 10 ) {
@@ -181,3 +197,22 @@ export function truncate( str: string, maxLen = 10 ) {
 	}
 	return str;
 }
+
+export const defaultMessageStyle: TransportMessageStyle = {
+	// 兩群互聯樣式
+	simple: {
+		message: "[{nick}] {text}",
+		reply: "[{nick}] Re {reply_nick} 「{reply_text}」: {text}",
+		forward: "[{nick}] Fwd {forward_nick}: {text}",
+		action: "* {nick} {text}",
+		notice: "< {text} >"
+	},
+	// 多群互聯樣式
+	complex: {
+		message: "[{client_short} - {nick}] {text}",
+		reply: "[{client_short} - {nick}] Re {reply_nick} 「{reply_text}」: {text}",
+		forward: "[{client_short} - {nick}] Fwd {forward_nick}: {text}",
+		action: "* {client_short} - {nick} {text}",
+		notice: "< {client_full}: {text} >"
+	}
+};

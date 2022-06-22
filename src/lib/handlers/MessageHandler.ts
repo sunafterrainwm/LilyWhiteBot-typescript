@@ -1,15 +1,20 @@
-import type { Telegraf as TelegrafClient, Context as TContext } from "telegraf";
+import type { Telegraf as TelegrafClient, Telegram as TelegrafTelegram } from "telegraf";
 import type { Client as DiscordClient } from "discord.js";
 import type { Client as IRCClient } from "irc-upd";
 
-import type { Context, RawMsg } from "@app/lib/handlers/Context";
-import EventEmitter, { Events } from "@app/lib/eventemitter2";
+import EventEmitter, { Events, EventEmitterConfig } from "@app/lib/eventemitter2";
+import type { Context, RawDataContext, RawMsg } from "@app/lib/handlers/Context";
+import type { AwaitParam } from "@app/utiltype";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Command<rawdata extends RawMsg = any> = ( context: Context<rawdata>, cmd: string, param: string ) => void;
+export type Command<rawdata extends RawMsg = any> = (
+	context: RawDataContext<rawdata>,
+	cmd: string,
+	param: string
+) => AwaitParam<void>;
 
-export type Telegraf = TelegrafClient<TContext>;
-export type Telegram = Telegraf["telegram"];
+export type Telegraf = TelegrafClient;
+export type Telegram = TelegrafTelegram;
 export type Discord = DiscordClient;
 export type IRC = IRCClient;
 
@@ -17,9 +22,9 @@ export type RawClient = Telegraf | Discord | IRC;
 
 export interface BaseEvents<C extends RawClient, M extends RawMsg> extends Events {
 	"event.ready"( client: C ): void;
-	"event.message"( context: Context<M> ): void;
-	"event.command"( context: Context<M>, comand: string, param: string ): void;
-	[ key: `event.command#${ string }` ]: ( context: Context<M>, param: string ) =>void;
+	"event.message"( context: RawDataContext<M> ): void;
+	"event.command"( context: RawDataContext<M>, command: string, param: string ): void;
+	[ key: `event.command#${ string }` ]: ( context: RawDataContext<M>, param: string ) =>void;
 }
 
 /**
@@ -63,16 +68,16 @@ export abstract class MessageHandler<
 
 	protected readonly _commands: Map<string, Command> = new Map();
 
-	public constructor( optin: unknown ) {
-		super( optin );
+	public constructor( options: unknown ) {
+		super( options as EventEmitterConfig | undefined ?? {} );
 	}
 
 	// eslint-disable-next-line max-len
 	public abstract say( target: string | number, message: string, options?: Record<string, unknown> ): Promise<unknown>;
 
-	public abstract reply( context: Context, message: string, options: Record<string, unknown> ): Promise<unknown>;
+	public abstract reply( context: Context, message: string, options?: Record<string, unknown> ): Promise<unknown>;
 
-	public addCommand( command: string, func?: Command ) {
+	public addCommand( command: string, func?: Command<M> ) {
 		if ( ( !command ) || ( command.trim() === "" ) ) {
 			return this;
 		}
@@ -81,7 +86,7 @@ export abstract class MessageHandler<
 			this._commands.set( command, func );
 		} else {
 			this._commands.set( command, function () {
-				return true;
+				// ignore
 			} );
 		}
 		return this;
@@ -105,10 +110,12 @@ export abstract class MessageHandler<
 		return this;
 	}
 
+	// eslint-disable-next-line @typescript-eslint/require-await
 	public async start() {
 		this._started = true;
 	}
 
+	// eslint-disable-next-line @typescript-eslint/require-await
 	public async stop() {
 		this._started = false;
 	}

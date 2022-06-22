@@ -12,7 +12,7 @@ import type { DiscordMessageHandler } from "@app/lib/handlers/DiscordMessageHand
 import type { TransportConfig, TransportMessageStyle, TransportProcessor } from "@app/plugins/transport";
 import type { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
-import { send, truncate } from "@app/plugins/transport/bridge";
+import { defaultMessageStyle, send, truncate } from "@app/plugins/transport/bridge";
 import delay from "@app/lib/delay";
 
 export interface TransportDiscordOptions {
@@ -40,33 +40,39 @@ let forwardBots: Record<string, "[]" | "<>" | "self"> = {};
 let dcHandler: DiscordMessageHandler;
 let messageStyle: TransportMessageStyle;
 
+type FWDBotInfo =
+	| { realNick: string; realText: string; }
+	| { realNick: null; realText: null; };
+
 // 如果是互聯機器人，那麼提取真實的使用者名稱和訊息內容
-function parseForwardBot( id: string, text: string ) {
-	let realText: string = null, realNick: string = null;
+function parseForwardBot( id: string, text: string ): FWDBotInfo {
 	const symbol = forwardBots[ id ];
 	if ( symbol === "self" ) {
 		// TODO 更換匹配方式
-		// [, , realNick, realText] = text.match(/^(|<.> )\[(.*?)\] ([^]*)$/mu) || [];
-		[ , realNick, realText ] = text.match( /^\[(.*?)\] ([^]*)$/mu ) || [];
+		// [ , , realNick, realText ] = text.match( /^(|<.> )\[(.*?)\] ([^]*)$/mu ) ?? [];
+		const [ , realNick, realText ] = text.match( /^\[(.*?)\] ([^]*)$/mu ) ?? [];
+		return { realNick, realText };
 	} else if ( symbol === "[]" ) {
-		[ , realNick, realText ] = text.match( /^\[(.*?)\](?::? |\n)([^]*)$/mu ) || [];
-	} else if ( symbol === "<>" ) {
-		[ , realNick, realText ] = text.match( /^<(.*?)>(?::? |\n)([^]*)$/mu ) || [];
+		const [ , realNick, realText ] = text.match( /^\[(.*?)\](?::? |\n)([^]*)$/mu ) ?? [];
+		return { realNick, realText };
+	} else if ( symbol === "<>" ) { // eslint-disable-line @typescript-eslint/no-unnecessary-condition
+		const [ , realNick, realText ] = text.match( /^<(.*?)>(?::? |\n)([^]*)$/mu ) ?? [];
+		return { realNick, realText };
 	}
 
-	return { realNick, realText };
+	return { realNick: null, realText: null };
 }
 
 function init( _dcHandler: DiscordMessageHandler, _config: TransportConfig ) {
 	config = _config;
-	options = config.options.Discord || {};
-	forwardBots = options.forwardBots || {};
-	messageStyle = config.options.messageStyle;
+	options = config.options.Discord ?? {};
+	forwardBots = options.forwardBots ?? {};
+	messageStyle = config.options.messageStyle ?? defaultMessageStyle;
 	dcHandler = _dcHandler;
 
 	// 我們自己也是傳話機器人
 	( async function () {
-		while ( dcHandler.me === undefined ) {
+		while ( typeof dcHandler.me === "undefined" ) {
 			await delay( 100 );
 		}
 		// 我們自己也是傳話機器人
@@ -79,7 +85,7 @@ function init( _dcHandler: DiscordMessageHandler, _config: TransportConfig ) {
 	// 將訊息加工好並發送給其他群組
 	dcHandler.on( "channel.text", function ( context ) {
 		function toSend() {
-			if ( context.extra.files && context.extra.files.length && options.allowDiscordCdnFileUrl ) {
+			if ( context.extra.files?.length && options.allowDiscordCdnFileUrl ) {
 				context.extra.uploads = context.extra.files as UploadFile[];
 			}
 			send( context ).catch( function ( err ) {
@@ -91,18 +97,23 @@ function init( _dcHandler: DiscordMessageHandler, _config: TransportConfig ) {
 
 		const extra = context.extra;
 
-		// 檢查是不是在回覆自己
-		if ( extra.reply && forwardBots[ extra.reply.username ] === extra.reply.discriminator ) {
-			const { realNick, realText } = parseForwardBot( String( extra.reply.id ), extra.reply.message );
-			if ( realText ) {
+		// 檢查是不是自己在回覆自己，然後檢查是不是其他互聯機器人在說話
+		if ( extra.reply?.username && extra.reply.username in forwardBots ) {
+			const { realNick, realText } = parseForwardBot( extra.reply.username, extra.reply.message );
+			if ( realNick ) {
 				[ extra.reply.nick, extra.reply.message ] = [ realNick, realText ];
+			}
+		} else if ( extra.forward?.username && extra.forward.username in forwardBots ) {
+			const { realNick, realText } = parseForwardBot( extra.forward.username, context.text );
+			if ( realNick ) {
+				[ extra.forward.nick, context.text ] = [ realNick, realText ];
 			}
 		}
 
 		if ( /<a?:\w+:\d*?>/g.test( context.text ) ) {
 			// 處理自定義表情符號
-			const emojis: ( { name: string, id: string } )[] = [];
-			const animated: ( { name: string, id: string } )[] = [];
+			const emojis: ( { name: string; id: string; } )[] = [];
+			const animated: ( { name: string; id: string; } )[] = [];
 
 			context.text = context.text.replace( /<:(\w+):(\d*?)>/g, function ( _, name: string, id: string ) {
 				if ( id && !emojis.filter( function ( v ) {
@@ -156,9 +167,9 @@ function init( _dcHandler: DiscordMessageHandler, _config: TransportConfig ) {
 		if ( /<@!?\d*?>/u.test( context.text ) ) {
 			// 處理 at
 			let ats: string[] = [];
-			const promises: Promise<Discord.User | false>[] = [];
+			const promises: Promise<Discord.User | false | undefined>[] = [];
 
-			context.text.replace( /<@!?(\d*?)>/gu, function ( all, id ) {
+			context.text.replace( /<@!?(\d*?)>/gu, function ( all: string, id: string ) {
 				ats.push( id );
 				return all;
 			} );
@@ -179,7 +190,9 @@ function init( _dcHandler: DiscordMessageHandler, _config: TransportConfig ) {
 				function ( infos ) {
 					for ( const info of infos ) {
 						if ( info ) {
-							userInfo.set( info.id, info );
+							if ( !userInfo.has( info.id ) ) {
+								userInfo.set( info.id, info );
+							}
 							context.text = context.text
 								.replace(
 									new RegExp( `<@!?${ info.id }>`, "gu" ),
@@ -208,15 +221,19 @@ async function receive( msg: BridgeMsg ) {
 		from: msg.from,
 		to: msg.to,
 		text: msg.text,
-		client_short: msg.extra.clientName.shortname,
-		client_full: msg.extra.clientName.fullname,
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		client_short: msg.extra.clientName?.shortname ?? msg.handler!.id,
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		client_full: msg.extra.clientName?.fullname ?? msg.handler!.type,
 		command: msg.command,
 		param: msg.param
 	};
 	if ( msg.extra.reply ) {
 		const reply = msg.extra.reply;
 		meta.reply_nick = reply.nick;
-		meta.reply_user = reply.username;
+		if ( reply.username ) {
+			meta.reply_user = reply.username;
+		}
 		if ( reply.isText ) {
 			meta.reply_text = truncate( reply.message );
 		} else {
@@ -225,12 +242,14 @@ async function receive( msg: BridgeMsg ) {
 	}
 	if ( msg.extra.forward ) {
 		meta.forward_nick = msg.extra.forward.nick;
-		meta.forward_user = msg.extra.forward.username;
+		if ( msg.extra.forward.username ) {
+			meta.forward_user = msg.extra.forward.username;
+		}
 	}
 
 	// 自定义消息样式
-	let styleMode = "simple";
-	if ( msg.extra.clients >= 3 && ( msg.extra.clientName.shortname || msg.extra.isNotice ) ) {
+	let styleMode: "simple" | "complex" = "simple";
+	if ( ( msg.extra.clients ?? 0 ) >= 3 && ( msg.extra.clientName?.shortname || msg.extra.isNotice ) ) {
 		styleMode = "complex";
 	}
 
@@ -248,8 +267,8 @@ async function receive( msg: BridgeMsg ) {
 	}
 
 	const output = format( template, meta );
-	const attachFileUrls = ( msg.extra.uploads || [] ).map( ( u ) => ` ${ u.url }` ).join( "" );
-	dcHandler.say( msg.to, `${ output }${ attachFileUrls }` );
+	const attachFileUrls = ( msg.extra.uploads ?? [] ).map( ( u ) => ` ${ u.url }` ).join( "" );
+	await dcHandler.say( msg.to, `${ output }${ attachFileUrls }` );
 }
 
 export default {

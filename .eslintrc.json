@@ -10,10 +10,8 @@
 		"wikimedia/server",
 		"wikimedia/node",
 		"wikimedia/language/es2020",
-		"plugin:import/recommended",
-		"plugin:import/typescript"
+		"plugin:import/recommended"
 	],
-	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
 		"ecmaVersion": 11,
 		"sourceType": "module"
@@ -31,7 +29,7 @@
 			{
 				"code": 120,
 				"tabWidth": 4,
-				"ignorePattern": "^// eslint-.+",
+				"ignorePattern": "^\t*// eslint-.+",
 				"ignoreUrls": true,
 				"ignoreComments": false,
 				"ignoreRegExpLiterals": true,
@@ -40,19 +38,6 @@
 			}
 		],
 		"no-underscore-dangle": "off",
-		"no-unused-vars": "off",
-		"@typescript-eslint/no-unused-vars": [
-			"error",
-			{
-				"args": "after-used",
-				"ignoreRestSiblings": true,
-				"argsIgnorePattern": "^_"
-			}
-		],
-		"no-dupe-class-members": "off",
-		"no-redeclare": "off",
-		"no-use-before-define": "off",
-		"no-undef": "off",
 		"quotes": [
 			"error",
 			"double",
@@ -60,32 +45,132 @@
 				"avoidEscape": true
 			}
 		],
+		"spaced-comment": [
+			"error",
+			"always",
+			{
+				"line": {
+					"markers": [
+						"/"
+					],
+					"exceptions": [
+						"-",
+						"+"
+					]
+				},
+				"block": {
+					"markers": [
+						"!"
+					],
+					"exceptions": [
+						"*"
+					],
+					"balanced": true
+				}
+			}
+		],
 		"template-curly-spacing": [
 			"error",
 			"always"
 		],
 		"node/no-missing-require": "off",
-		"node/no-missing-import": "off",
-		"import/no-named-as-default-member": "off",
-		"import/export": "off"
-	},
-	"settings": {
-		"import/parsers": {
-			"@typescript-eslint/parser": [
-				".ts"
-			]
-		},
-		"import/resolver": {
-			"typescript": {
-				"alwaysTryTypes": true,
-				"project": "tsconfig.json"
-			}
-		}
+		"node/no-missing-import": "off"
 	},
 	"overrides": [
 		{
 			"files": [
-				"*.js"
+				"**/*.ts",
+				"**/*.d.ts"
+			],
+			"extends": [
+				"plugin:@typescript-eslint/recommended-requiring-type-checking",
+				"plugin:@typescript-eslint/strict", 
+				"plugin:import/typescript"
+			],
+			"parser": "@typescript-eslint/parser",
+			"parserOptions": {
+				"project": "tsconfig.json"
+			},
+			"rules": {
+				"indent": "off",
+				"no-unused-vars": "off",
+				"no-dupe-class-members": "off",
+				"no-redeclare": "off",
+				"no-use-before-define": "off",
+				"no-undef": "off",
+				"semi": "off",
+				"@typescript-eslint/indent": [
+					"error",
+					"tab",
+					{
+						"SwitchCase": 1
+					}
+				],
+				"@typescript-eslint/member-delimiter-style": [
+					"error",
+					{
+						"multiline": {
+							"delimiter": "semi",
+							"requireLast": true
+						},
+						"singleline": {
+							"delimiter": "semi",
+							"requireLast": true
+						}
+					}
+				],
+				"@typescript-eslint/no-floating-promises": "off",
+				"@typescript-eslint/no-misused-promises": [
+					"error",
+					{
+						"checksVoidReturn": {
+							"arguments": false,
+							"returns": false
+						}
+					}
+				],
+				"@typescript-eslint/no-unused-vars": [
+					"error",
+					{
+						"args": "after-used",
+						"ignoreRestSiblings": true,
+						"argsIgnorePattern": "^_"
+					}
+				],
+				"@typescript-eslint/semi": [
+					"error",
+					"always"
+				],
+				"@typescript-eslint/restrict-template-expressions": [
+					"error",
+					{
+						"allowNullish": true
+					}
+				],
+				"@typescript-eslint/triple-slash-reference": [
+					"error",
+					{
+						"types": "prefer-import"
+					}
+				]
+			},
+			"settings": {
+				"import/parsers": {
+					"@typescript-eslint/parser": [
+						".ts"
+					]
+				},
+				"import/resolver": {
+					"typescript": {
+						"alwaysTryTypes": true,
+						"project": "tsconfig.json"
+					}
+				}
+			}
+		},
+		{
+			"files": [
+				"**/*.js"
 			],
 			"rules": {
 				"@typescript-eslint/no-var-requires": "off"

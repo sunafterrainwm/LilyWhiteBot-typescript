@@ -4,7 +4,7 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 
 import ids_tg from "@app/plugins/ids-tg";
 

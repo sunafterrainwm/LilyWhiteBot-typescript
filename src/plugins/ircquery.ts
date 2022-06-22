@@ -4,7 +4,7 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 import type { Context } from "@app/lib/handlers/Context";
 import type { IRCMessageHandler } from "@app/lib/handlers/IRCMessageHandler";
 
@@ -23,11 +23,14 @@ declare module "@config/config.type" {
 	}
 }
 
-let icHandler: IRCMessageHandler = null;
+let icHandler: IRCMessageHandler;
 
 function getChans( context: Context ) {
+	if ( !context.extra.mapTo ) {
+		return [];
+	}
 	const r: string[] = [];
-	for ( const c of context.extra.mapto ) {
+	for ( const c of context.extra.mapTo ) {
 		const client = parseUID( c );
 		if ( client.client === "IRC" ) {
 			r.push( client.id );
@@ -38,6 +41,7 @@ function getChans( context: Context ) {
 
 function processWhois( context: Context ) {
 	if ( context.param ) {
+
 		icHandler.whois( context.param ).then( function ( info ) {
 			let output = [ `${ info.nick }: Unknown nick` ];
 
@@ -52,7 +56,7 @@ function processWhois( context: Context ) {
 				}
 
 				if ( info.account ) {
-					output.push( `${ info.nick } ${ info.accountinfo } ${ info.account }` );
+					output.push( `${ info.nick } ${ info.accountinfo ?? "" } ${ info.account }` );
 				}
 			}
 
@@ -70,16 +74,16 @@ function processNames( context: Context ) {
 
 	for ( const chan of chans ) {
 		const users = icHandler.chans[ chan ].users;
-		const userlist: string[] = [];
+		const userList: string[] = [];
 
 		for ( const user in users ) {
 			if ( users[ user ] !== "" ) {
-				userlist.push( `(${ users[ user ] })${ user }` );
-			} else if ( users[ user ] !== undefined ) {
-				userlist.push( user );
+				userList.push( `(${ users[ user ] })${ user }` );
+			} else if ( typeof users[ user ] !== "undefined" ) {
+				userList.push( user );
 			}
 		}
-		userlist.sort( function ( a: string, b: string ) {
+		userList.sort( function ( a: string, b: string ) {
 			if ( a.startsWith( "(@)" ) && !b.startsWith( "(@)" ) ) {
 				return -1;
 			} else if ( b.startsWith( "(@)" ) && !a.startsWith( "(@)" ) ) {
@@ -93,7 +97,7 @@ function processNames( context: Context ) {
 			}
 		} );
 
-		const outputStr = `Users on ${ chan }: ${ userlist.join( ", " ) }`;
+		const outputStr = `Users on ${ chan }: ${ userList.join( ", " ) }`;
 		context.reply( outputStr );
 		winston.debug( `[ircquery] Msg #${ context.msgId } names: ${ outputStr }` );
 	}
@@ -121,8 +125,9 @@ const ircquery: PluginExport<"ircquery"> = function ( pluginManager, options ) {
 		return;
 	}
 
-	const prefix = options.prefix || "";
-	icHandler = pluginManager.handlers.get( "IRC" );
+	const prefix = options?.prefix ?? "";
+	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+	icHandler = pluginManager.handlers.get( "IRC" )!;
 
 	bridge.addCommand( `/${ prefix }topic`, processTopic, options );
 	bridge.addCommand( `/${ prefix }names`, processNames, options );

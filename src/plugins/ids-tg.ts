@@ -4,7 +4,7 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
@@ -26,14 +26,15 @@ const ids_tg: PluginExport<"ids-tg"> = function ( pluginManager ) {
 	const tg = pluginManager.handlers.get( "Telegram" );
 	if ( tg ) {
 		tg.addCommand( "thisgroupid", function ( context ) {
-			const rawdata = context._rawdata;
+			const ctx = context._rawdata;
+
 			let output: string;
-			if ( rawdata.from.id === rawdata.chat.id ) {
-				output = `Your ID: <code>${ rawdata.from.id }</code>`;
-				winston.debug( `[ids-tg] Msg #${ context.msgId }: YourId = ${ rawdata.from.id }` );
+			if ( ctx.from.id === ctx.chat.id ) {
+				output = `Your ID: <code>${ ctx.from.id }</code>`;
+				winston.debug( `[ids-tg] Msg #${ context.msgId }: YourId = ${ ctx.from.id }` );
 			} else {
-				output = `Group ID: <code>${ rawdata.chat.id }</code>`;
-				winston.debug( `[ids-tg] Msg #${ context.msgId }: GroupId = ${ rawdata.chat.id }` );
+				output = `Group ID: <code>${ ctx.chat.id }</code>`;
+				winston.debug( `[ids-tg] Msg #${ context.msgId }: GroupId = ${ ctx.chat.id }` );
 			}
 			context.reply( output, {
 				parse_mode: "HTML"
@@ -43,27 +44,29 @@ const ids_tg: PluginExport<"ids-tg"> = function ( pluginManager ) {
 		tg.aliasCommand( "groupid", "thisgroupid" );
 
 		tg.addCommand( "userid", function ( context ) {
-			const rawdata = context._rawdata;
+			const ctx = context._rawdata;
 
 			let output: string;
-			if ( "reply_to_message" in rawdata.message ) {
+			if ( "reply_to_message" in ctx.message && ctx.message.reply_to_message ) {
 				if (
-					"forward_from" in rawdata.message.reply_to_message
+					"forward_from" in ctx.message.reply_to_message &&
+					ctx.message.reply_to_message.forward_from
 				) {
-					output = "Forward From " + getOutPut( [ false, rawdata.message.reply_to_message.forward_from.id ] );
+					output = "Forward From " + getOutPut( [ false, ctx.message.reply_to_message.forward_from.id ] );
 				} else if (
-					"forward_from_chat" in rawdata.message.reply_to_message &&
-					[ "channel", "group", "supergroup" ].includes( rawdata.message.reply_to_message.forward_from_chat.type )
+					"forward_from_chat" in ctx.message.reply_to_message &&
+					ctx.message.reply_to_message.forward_from_chat &&
+					[ "channel", "group", "supergroup" ].includes( ctx.message.reply_to_message.forward_from_chat.type )
 				) {
 					output = "Forward From " + getOutPut( [
-						upperCaseFirst( rawdata.message.reply_to_message.forward_from_chat.type ),
-						rawdata.message.reply_to_message.forward_from_chat.id
+						upperCaseFirst( ctx.message.reply_to_message.forward_from_chat.type ),
+						ctx.message.reply_to_message.forward_from_chat.id
 					] );
 				} else {
-					output = "Reply to " + getOutPut( tg.isTelegramFallbackBot( rawdata.message.reply_to_message ) );
+					output = "Reply to " + getOutPut( tg.isTelegramFallbackBot( ctx.message.reply_to_message ) );
 				}
 			} else {
-				output = "Your " + getOutPut( tg.isTelegramFallbackBot( rawdata.message ) );
+				output = "Your " + getOutPut( tg.isTelegramFallbackBot( ctx.message ) );
 			}
 			winston.debug( `[ids-tg] Msg #${ context.msgId }: ${ output }` );
 			context.reply( output.replace( /"(-?\d+)"/, "<code>$1</code>" ), {

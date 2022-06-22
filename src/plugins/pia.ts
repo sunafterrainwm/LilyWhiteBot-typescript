@@ -11,14 +11,14 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 import type { Context } from "@app/lib/handlers/Context";
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
 		// only for fallback
 		// eslint-disable-next-line @typescript-eslint/ban-types
-		pia: {}
+		pia: {};
 	}
 }
 
@@ -38,15 +38,18 @@ const pia: PluginExport<"pia"> = function ( pluginManager ) {
 	const bridge = pluginManager.plugins.transport;
 	const BridgeMsg = pluginManager.global.BridgeMsg;
 
-	async function doPia( context: Context ) {
+	function doPia( context: Context ) {
 		const command = context.command;
-		const action = ( piaMap.get( command.replace( /^[!#/]/, "" ) ) + context.param ).trim();
+		const action = (
+			String( piaMap.get( command.replace( /^[!#/]/, "" ) ) ) + " " + context.param
+		).trim();
 
 		context.reply( action );
 		winston.debug( `[pia] Msg #${ context.msgId }: ${ action }` );
 
 		// 如果開啟了互聯，而且是在公開群組中使用本命令，那麼讓其他群也看見掀桌
-		if ( bridge && !context.isPrivate ) {
+		if ( bridge && BridgeMsg && !context.isPrivate ) {
+
 			bridge.send( new BridgeMsg( context, {
 				text: action,
 				isNotice: true

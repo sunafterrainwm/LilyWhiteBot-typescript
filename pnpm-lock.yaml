@@ -32,7 +32,7 @@ specifiers:
   sharp: ^0.30.3
   string-format: ^2.0.0
   telegraf: ^4.7.0
-  typegram: ^3.9.2
+  typegram: ^3.10.0
   typescript: ^4.6.3
   winston: ^3.7.2
 
@@ -72,7 +72,7 @@ devDependencies:
   eslint-plugin-import: 2.26.0_xzp3xuu5l2v5skncvl5a2je5s4
   grunt: 1.5.3
   grunt-contrib-clean: 2.0.1_grunt@1.5.3
-  typegram: 3.9.2
+  typegram: 3.10.0
 
 packages:
 
@@ -219,7 +219,7 @@ packages:
   /@types/grunt/0.4.27:
     resolution: {integrity: sha512-J5DnAylOR3MTL3sdYkoBxZ7Jb+/mwmeQOVCXSqbSiVYSngELHiMF5xO235H5CMwSfbpBDLN56ykz1CCh4S6fhQ==}
     dependencies:
-      '@types/node': 17.0.41
+      '@types/node': 17.0.42
     dev: true
 
   /@types/js-yaml/4.0.5:
@@ -245,12 +245,12 @@ packages:
   /@types/node-fetch/2.6.1:
     resolution: {integrity: sha512-oMqjURCaxoSIsHSr1E47QHzbmzNR5rK8McHuNb11BOM9cHcIK3Avy0s/b2JlXHoQGTYS3NsvWzV1M0iK7l0wbA==}
     dependencies:
-      '@types/node': 17.0.41
+      '@types/node': 17.0.42
       form-data: 3.0.1
     dev: false
 
-  /@types/node/17.0.41:
-    resolution: {integrity: sha512-xA6drNNeqb5YyV5fO3OAEsnXLfO7uF0whiOfPTz5AeDo8KeZFmODKnvwPymMNO8qE/an8pVY/O50tig2SQCrGw==}
+  /@types/node/17.0.42:
+    resolution: {integrity: sha512-Q5BPGyGKcvQgAMbsr7qEGN/kIPN6zZecYYABeTDBizOsau+2NMdSVTar9UQw21A2+JyA2KRNDYaYrPB0Rpk2oQ==}
 
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -260,7 +260,7 @@ packages:
     resolution: {integrity: sha512-whjk1EDJPcAR2kYHRbFl/lKeeKYTi05A15K9bnLInCVroNDCtXce57xKdI0/rQaA3K+6q0eFyUBPmqfSndUZdQ==}
     dependencies:
       '@types/caseless': 0.12.2
-      '@types/node': 17.0.41
+      '@types/node': 17.0.42
       '@types/tough-cookie': 4.0.2
       form-data: 2.5.1
     dev: true
@@ -268,7 +268,7 @@ packages:
   /@types/sharp/0.30.4:
     resolution: {integrity: sha512-6oJEzKt7wZeS7e+6x9QFEOWGs0T/6of00+0onZGN1zSmcSjcTDZKgIGZ6YWJnHowpaKUCFBPH52mYljWqU32Eg==}
     dependencies:
-      '@types/node': 17.0.41
+      '@types/node': 17.0.42
     dev: true
 
   /@types/string-format/2.0.0:
@@ -282,13 +282,13 @@ packages:
   /@types/ws/8.5.3:
     resolution: {integrity: sha512-6YOoWjruKj1uLf3INHH7D3qTXwFfEsg1kf3c0uDdSBJwfa/llkwIjrAGV7j7mVgGNbzTQ3HiHKKDXl6bJPD97w==}
     dependencies:
-      '@types/node': 17.0.41
+      '@types/node': 17.0.42
     dev: false
 
   /@types/xml2js/0.4.11:
     resolution: {integrity: sha512-JdigeAKmCyoJUiQljjr7tQG3if9NkqGUgwEUqBvV0N7LM4HyQk7UXCnusRa1lnvXAEYJ8mw8GtZWioagNztOwA==}
     dependencies:
-      '@types/node': 17.0.41
+      '@types/node': 17.0.42
     dev: true
 
   /@typescript-eslint/eslint-plugin/5.27.1_aq7uryhocdbvbqum33pitcm3y4:
@@ -3304,7 +3304,7 @@ packages:
       p-timeout: 4.1.0
       safe-compare: 1.1.4
       sandwich-stream: 2.0.2
-      typegram: 3.9.2
+      typegram: 3.10.0
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -3403,8 +3403,8 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /typegram/3.9.2:
-    resolution: {integrity: sha512-lbMhaP0jHsEbz8EJf2s4/hkKLtt2/9THTNatXa2mJCKHZBeJzGO1jrwueQBnXsSgA5pPHLwcPslTnsKXGo/GIQ==}
+  /typegram/3.10.0:
+    resolution: {integrity: sha512-kma7ZF7SFRqcUCgo5sHg1MbPwc9/KYjVkbvrqIZK7oXfPdLBGz1s7wF9d7o4yjHp+AOGke8cyYGhI/+4xYYC4Q==}
 
   /typescript/4.7.3:
     resolution: {integrity: sha512-WOkT3XYvrpXx4vMMqlD+8R8R37fZkjyLGlxavMc4iB8lrl8L0DeTcHbYgw/v0N/z9wAFsgBhcsF0ruoySS22mA==}

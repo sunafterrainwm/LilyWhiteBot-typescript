@@ -143,3 +143,4 @@ data/
 *-nogit-*
 /docker-compose.yaml
 tempCodeRunnerFile.*
+/.vscode

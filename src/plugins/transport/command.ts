@@ -21,17 +21,17 @@ import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
 import type { TransportHook, TransportHooks } from "@app/plugins/transport/bridge";
 
 import { clientFullNames, parseUID } from "@app/lib/uidParser";
-import { BridgeMsg } from "@app/plugins/transport/BridgeMsg";
+import { BridgeMsg, RawDataBridgeMsg } from "@app/plugins/transport/BridgeMsg";
 
-export type TransportCommand = TransportHook<[BridgeMsg], void>;
+export type TransportCommand = TransportHook<[RawDataBridgeMsg], void>;
 
-export type CommandTS = {
+export interface CommandTS {
 	options: {
-		disables: string[],
-		enables?: string[]
-	},
-	callbacks: Record<string, TransportCommand>
-};
+		disables: string[];
+		enables?: string[];
+	};
+	callbacks: Record<string, TransportCommand>;
+}
 
 const commands: Map<string, CommandTS> = new Map();
 
@@ -71,8 +71,8 @@ export function addCommand(
 			clients.push( client.toString().toLowerCase() );
 		}
 	} else {
-		const disallowedClients = [];
-		for ( const client of ( opts.disallowedClients || [] ) ) {
+		const disallowedClients: string[] = [];
+		for ( const client of ( opts.disallowedClients ?? [] ) ) {
 			disallowedClients.push( client.toString().toLowerCase() );
 		}
 
@@ -142,7 +142,7 @@ function getCmd( msg: BridgeMsg ) {
 }
 
 function hook( event: keyof TransportHooks ): ( msg: BridgeMsg ) => Promise<void> {
-	return function ( msg: BridgeMsg ): Promise<void> {
+	return async function ( msg: BridgeMsg ) {
 		if ( msg.command ) {
 			const cmd = getCmd( msg );
 
@@ -151,7 +151,7 @@ function hook( event: keyof TransportHooks ): ( msg: BridgeMsg ) => Promise<void
 			}
 
 			const { disables, enables } = cmd.options;
-			let func = null;
+			let func: TransportCommand | null = null;
 
 			// 判斷當前群組是否在處理範圍內
 			if ( disables.includes( msg.to_uid ) ) {
@@ -159,15 +159,13 @@ function hook( event: keyof TransportHooks ): ( msg: BridgeMsg ) => Promise<void
 				return Promise.resolve();
 			}
 
-			if ( !enables || ( enables && enables.includes( msg.to_uid ) ) ) { // lgtm [js/trivial-conditional]
+			if ( !enables || ( enables.length && enables.includes( msg.to_uid ) ) ) { // lgtm [js/trivial-conditional]
 				func = cmd.callbacks[ event ];
 			}
 
 			if ( func && ( typeof func === "function" ) ) {
 				winston.debug( `[transport/command] Msg #${ msg.msgId } command: ${ msg.command }` );
-				return func( msg );
-			} else {
-				return Promise.resolve();
+				await func( msg as RawDataBridgeMsg );
 			}
 		}
 	};

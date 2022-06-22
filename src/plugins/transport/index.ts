@@ -4,7 +4,7 @@
 
 import winston = require( "winston" );
 
-import type { PluginExport, PluginManager } from "@app/bot.type";
+import type { PluginExport, PluginManager } from "@app/utiltype";
 import type { Context } from "@app/lib/handlers/Context";
 
 import { parseUID } from "@app/lib/uidParser";
@@ -51,21 +51,21 @@ export interface TransportBridge {
 			enables?: string[];
 			disables?: string[];
 		}
-	): void
+	): void;
 	deleteCommand( command: string ): void;
 	getCommand( command: string ): bridgeCommand.CommandTS;
 	send( m: BridgeMsg | Context, bot?: boolean ): Promise<boolean>;
 }
 
-type messageStyle = {
+interface messageStyle {
 	message: string;
 	reply: string;
 	forward: string;
 	action: string;
 	notice: string;
-};
+}
 
-export type TransportMessageStyle = {
+export interface TransportMessageStyle {
 	/**
 	 * 兩群互聯樣式
 	 */
@@ -110,7 +110,7 @@ export interface TransportConfig {
 		/**
 		 * 留空或省略則禁用本功能
 		 */
-		paeeye: bridgePaeeye.TransportPaeeyeOptions;
+		paeeye?: bridgePaeeye.TransportPaeeyeOptions;
 
 		/**
 		 * 自訂訊息樣式（使用 https://www.npmjs.com/package/string-format 庫實現）
@@ -121,7 +121,7 @@ export interface TransportConfig {
 		 * 注意：此處的 nick 並不一定是暱稱，具體內容受前面各聊天軟體機器人的 nickStyle 屬性控制。
 		 * 例如 Telegram.options.nickStyle 為 fullname 的話，在轉發 Telegram 群訊息時，nick 也會變成全名。
 		 */
-		messageStyle: TransportMessageStyle;
+		messageStyle?: TransportMessageStyle;
 
 		/**
 		 * 本節用於處理圖片檔案
@@ -143,11 +143,11 @@ export interface TransportConfig {
 		 * 2. 如使用外部圖床，建議您設定自己專用的 User-Agent。
 		 * 3. 自建伺服器請使用 80 或 443 埠（中國國內伺服器需備案），否則圖片可能無法正常轉發。
 		 */
-		servemedia: bridgeFile.TransportServemedia;
+		servemedia?: bridgeFile.TransportServemedia;
 	};
 }
 
-declare module "@app/bot.type" {
+declare module "@app/utiltype" {
 	interface PluginManagerPlugins {
 		transport?: TransportBridge;
 	}
@@ -181,6 +181,10 @@ const defaultMessageStyle = {
 };
 
 const transport: PluginExport<"transport"> = async function ( pluginManager, options ) {
+	if ( !options ) {
+		throw new Error( "Config plugin transport is undefined." );
+	}
+
 	const exports: {
 		BridgeMsg?: typeof BridgeMsg;
 		handlers?: PluginManager[ "handlers" ];
@@ -215,7 +219,7 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 	 */
 	const map: TransportBridge[ "map" ] = {};
 
-	const groups: string[][] = options.groups || [];
+	const groups: string[][] = options.groups;
 
 	for ( const group of groups ) {
 		// 建立聯繫
@@ -225,12 +229,12 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 			if ( client1 ) {
 				for ( const c2 of group ) {
 					const client2 = parseUID( c2 ).uid;
-					if ( !c2 ) {
+					if ( !client2 ) {
 						winston.warn( `[transport] bad uid "${ c2 }".` );
 						break;
 					} else if ( client1 === client2 ) {
 						continue;
-					} else if ( !map[ client1 ] ) {
+					} else if ( !( client1 in map ) ) {
 						map[ client1 ] = {};
 					}
 
@@ -245,12 +249,12 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 	}
 
 	// 移除被禁止的聯繫
-	const disables: Record<string, string[]> = options.disables || {};
+	const disables: Record<string, string[]> = options.disables ?? {};
 	for ( const c1 in disables ) {
 		const client1 = parseUID( c1 ).uid;
 
 		if ( client1 ) {
-			if ( !map[ client1 ] ) {
+			if ( !( client1 in map ) ) {
 				winston.warn( `[transport] Fail to disable transport "${ client1 }": key is undefined.` );
 				continue;
 			}
@@ -263,10 +267,10 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 
 			for ( const c2 of list ) {
 				const client2 = parseUID( c2 ).uid;
-				if ( !c2 ) {
+				if ( !client2 ) {
 					winston.warn( `[transport] bad uid "${ c2 }".` );
 					break;
-				} else if ( map[ client1 ][ client2 ] ) {
+				} else if ( client2 in map[ client1 ] ) {
 					map[ client1 ][ client2 ].disabled = true;
 				} else {
 					winston.warn( `[transport] Fail to disable transport "${ client2 }": key is undefined.` );
@@ -280,12 +284,15 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 	Object.assign( bridge.map, map );
 
 	// 處理用戶端別名
-	const aliases = options.aliases || {};
-	const aliases2 = {};
-	for ( const a in aliases ) {
+	const origAliases = options.aliases ?? {};
+	const aliases: Record<string, {
+		shortname: string;
+		fullname: string;
+	}> = {};
+	for ( const a in origAliases ) {
 		const cl = parseUID( a ).uid;
 		if ( cl ) {
-			const names = aliases[ a ];
+			const names = origAliases[ a ];
 			let shortname: string;
 			let fullname: string;
 
@@ -296,13 +303,13 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 				fullname = names[ 1 ] || shortname;
 			}
 
-			aliases2[ cl ] = {
+			aliases[ cl ] = {
 				shortname,
 				fullname
 			};
 		}
 	}
-	Object.assign( bridge.aliases, aliases2 );
+	Object.assign( bridge.aliases, aliases );
 
 	// 默认消息样式
 	if ( !options.options.messageStyle ) {
@@ -311,6 +318,7 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 
 	// 載入各用戶端的處理程式，並連接到 bridge 中
 	for ( const [ type, handler ] of pluginManager.handlers ) {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 		const processor: bridge.TransportProcessor = ( await import( `@app/plugins/transport/processors/${ type }` ) ).default;
 		processor.init( handler, options );
 		bridge.addProcessor( type, processor );
@@ -332,8 +340,8 @@ const transport: PluginExport<"transport"> = async function ( pluginManager, opt
 	winston.debug( "" );
 	winston.debug( "[transport] Aliases:" );
 	let aliasesCount = 0;
-	for ( const alias in aliases2 ) {
-		winston.debug( `\t${ alias }: ${ aliases2[ alias ].shortname } ---> ${ aliases2[ alias ].fullname }` );
+	for ( const alias in aliases ) {
+		winston.debug( `\t${ alias }: ${ aliases[ alias ].shortname } ---> ${ aliases[ alias ].fullname }` );
 		aliasesCount++;
 	}
 	if ( aliasesCount === 0 ) {

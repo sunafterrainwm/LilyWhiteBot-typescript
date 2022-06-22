@@ -2,7 +2,7 @@
  * 在 Telegram 取得個別用戶的 ID 及群組 ID
  */
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 import { Context } from "../lib/handlers/Context";
 import winston = require( "winston" );
 import vm = require( "vm" );
@@ -17,7 +17,7 @@ declare module "@config/config.type" {
 
 const evalMod: PluginExport<"eval"> = function ( pluginManager ) {
 	function cEval( msg: Context ) {
-		if ( !pluginManager.botAdmins.includes( Context.getUIDFromContext( msg, msg.from ) ) ) {
+		if ( !pluginManager.botAdmins.includes( Context.getUIDFromContext( msg, msg.from ) ?? "" ) ) {
 			winston.info( `[eval] #${ msg.msgId } Fail: Permission Denied.` );
 			msg.reply( "Permission Denied." );
 			return;
@@ -34,16 +34,23 @@ const evalMod: PluginExport<"eval"> = function ( pluginManager ) {
 			context: msg
 		} );
 		try {
-			const result = vm.runInContext( msg.param, sandbox, {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+			let result = vm.runInContext( msg.param, sandbox, {
 				timeout: 10000,
 				breakOnSigint: true
 			} );
 
+			try {
+				result = JSON.stringify( result );
+			} catch {
+				result = String( result );
+			}
+
 			msg.reply( String( result ) );
 			winston.info( `[eval] #${ msg.msgId } eval result: ${ String( result ) }` );
-		} catch ( e ) {
-			msg.reply( String( e ) );
-			winston.info( `[eval] #${ msg.msgId } error result: ${ e }` );
+		} catch ( err ) {
+			msg.reply( String( err ) );
+			winston.error( `[eval] #${ msg.msgId } error result: `, err );
 		}
 	}
 

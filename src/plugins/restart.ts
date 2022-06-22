@@ -24,27 +24,27 @@ import fs = require( "fs" );
 import path = require( "path" );
 import winston = require( "winston" );
 
-import type { PluginExport } from "@app/bot.type";
+import type { PluginExport } from "@app/utiltype";
 
 interface ExitPlugin {
 	paths: ( {
-		type?: "" | "file" | "folder",
+		type?: "" | "file" | "folder";
 		path: string;
 	} )[];
 	usePolling?: boolean;
-	fullRestart?: boolean | "whenFail"
+	fullRestart?: boolean | "whenFail";
 }
 
 declare module "@config/config.type" {
 	interface PluginConfigs {
-		exit: ExitPlugin
+		exit: ExitPlugin;
 	}
 }
 
 const exit: PluginExport<"exit"> = function ( pluginManager, options ) {
-	const exits = [];
+	const exits: string[] = [];
 
-	options.paths.forEach( function ( obj ) {
+	options?.paths.forEach( function ( obj ) {
 		const isFolder = obj.type === "folder";
 		try {
 			const stats = fs.statSync( obj.path );
@@ -73,7 +73,7 @@ const exit: PluginExport<"exit"> = function ( pluginManager, options ) {
 	const watcher = chokidar.watch( exits, {
 		persistent: true,
 		ignoreInitial: false,
-		usePolling: options.usePolling
+		usePolling: !!options?.usePolling
 	} );
 
 	watcher
@@ -83,8 +83,9 @@ const exit: PluginExport<"exit"> = function ( pluginManager, options ) {
 		.on( "error", function ( err ) {
 			winston.error( "[restart]", err );
 		} )
+
 		.on( "change", async function ( p ) {
-			if ( options.fullRestart === true ) {
+			if ( options?.fullRestart === true ) {
 				winston.warn( `[restart] watching path "${ p }" change, exit.` );
 				// eslint-disable-next-line no-process-exit
 				process.exit( 1 );
@@ -100,11 +101,11 @@ const exit: PluginExport<"exit"> = function ( pluginManager, options ) {
 						winston.warn( `[restart] restart client ${ client } success.` );
 					} catch ( err ) {
 						error = true;
-						winston.warn( `[restart] restart client ${ client } fail: ${ err }` );
+						winston.error( `[restart] restart client ${ client } fail: `, err );
 					}
 				}
 
-				if ( error && options.fullRestart === "whenFail" ) {
+				if ( error && options?.fullRestart === "whenFail" ) {
 					winston.warn( "[restart] one or more of client restart fail, exit." );
 					// eslint-disable-next-line no-process-exit
 					process.exit( 1 );

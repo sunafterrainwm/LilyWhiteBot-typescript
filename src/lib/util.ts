@@ -14,22 +14,24 @@ export function isFileExists( name: string, dir = path.join( __dirname, "../.." 
 }
 
 // 加载配置文件
-export function loadConfig( name: string ) {
+export function loadConfig<T>( name: string ): T | null {
 	const dir = path.join( __dirname, "../../config" );
 
 	// 优先读取 javascript/typescript 格式配置文件
 	try {
-		return require( `@config/${ name }` );
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		return require( `@config/${ name }` ) as T;
 	} catch {
 		if ( isFileExists( `${ name }.yml`, dir ) ) {
 			winston.warn( `* DEPRECATED: ${ name }.yml format is deprecated, please use typescript format instead.` );
-			return yaml.load( fs.readFileSync( path.join( dir, `${ name }.yml` ), "utf8" ) );
+			return yaml.load( fs.readFileSync( path.join( dir, `${ name }.yml` ), "utf8" ) ) as T;
 		} else if ( isFileExists( `${ name }.yaml`, dir ) ) {
 			winston.warn( `* DEPRECATED: ${ name }.yaml format is deprecated, please use typescript format instead.` );
-			return yaml.load( fs.readFileSync( path.join( dir, `${ name }.yaml` ), "utf8" ) );
+			return yaml.load( fs.readFileSync( path.join( dir, `${ name }.yaml` ), "utf8" ) ) as T;
 		} else if ( isFileExists( path.join( dir, `${ name }.json` ), dir ) ) {
 			winston.warn( `* DEPRECATED: ${ name }.json format is deprecated, please use typescript format instead.` );
-			return require( path.join( dir, `${ name }.json` ) );
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			return require( path.join( dir, `${ name }.json` ) ) as T;
 		} else {
 			return null;
 		}
@@ -41,10 +43,16 @@ export function checkDeprecatedConfig( object: unknown, keyPath: string, otherWa
 	let current = object;
 	const keys = keyPath.split( "." );
 	for ( const key of keys ) {
-		if ( current === null || current === undefined || current[ key ] === null || current[ key ] === undefined ) {
+		if (
+			current === null ||
+			current === undefined ||
+			!( key in ( current as Record<string, unknown> ) ) ||
+			( current as Record<string, unknown> )[ key ] === null ||
+			( current as Record<string, unknown> )[ key ] === undefined
+		) {
 			return;
 		} else {
-			current = current[ key ];
+			current = ( current as Record<string, unknown> )[ key ];
 		}
 	}
 	winston.warn( `* DEPRECATED: Config ${ keyPath } is deprecated. ${ otherWarning }` );

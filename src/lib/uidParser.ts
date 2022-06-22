@@ -1,4 +1,4 @@
-import type { PluginManager } from "@app/bot.type";
+import type { PluginManager } from "@app/utiltype";
 
 let clientFullNames: Record<string, string> = {};
 const clientFullNamesProxy = new Proxy<Record<string, string>>( {}, {
@@ -8,6 +8,7 @@ const clientFullNamesProxy = new Proxy<Record<string, string>>( {}, {
 			undefined;
 	},
 	set( _, key, value ) {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return
 		return ( clientFullNames[ key as string ] = value );
 	}
 } );
@@ -25,21 +26,41 @@ export function setHandlers( handlers: PluginManager[ "handlers" ] ) {
 	}
 }
 
-export function parseUID( u: string ) {
-	let client: string = null, id: string = null, uid: string = null;
+export interface UidAST {
+	client: string;
+	id: string;
+	uid: string;
+}
+
+export interface UidASTNull {
+	client: null;
+	id: null;
+	uid: null;
+}
+
+export function parseUID<FORCE = false>( u: string ): FORCE extends true ? UidAST : UidAST | UidASTNull;
+export function parseUID( u: string ): UidAST | UidASTNull {
 	if ( u ) {
-		const s = u.toString();
+		const s = String( u );
 		const i = s.indexOf( "/" );
 
 		if ( i !== -1 ) {
+			let client: string;
+
 			client = s.slice( 0, Math.max( 0, i ) ).toLowerCase();
 			if ( clientFullNames[ client ] ) {
 				client = clientFullNames[ client ];
 			}
 
-			id = s.slice( i + 1 ).toLowerCase();
-			uid = `${ client.toLowerCase() }/${ id }`;
+			const id = s.slice( i + 1 ).toLowerCase();
+			const uid = `${ client.toLowerCase() }/${ id }`;
+
+			return { client, id, uid };
 		}
 	}
-	return { client, id, uid };
+	return {
+		client: null,
+		id: null,
+		uid: null
+	};
 }
