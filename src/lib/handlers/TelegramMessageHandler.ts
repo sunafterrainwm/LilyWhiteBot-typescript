@@ -499,7 +499,8 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 		msg: ( TT.PhotoSize | TT.Sticker | TT.Audio | TT.Voice | TT.Video | TT.Document ) & {
 			mime_type?: string;
 		},
-		type: "photo" | "sticker" | "audio" | "voice" | "video" | "document"
+		type: "photo" | "sticker" | "audio" | "voice" | "video" | "document",
+		override = false
 	): void {
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const that = this;
@@ -536,7 +537,8 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			size: msg.file_size,
 			mime_type: msg.mime_type
 		};
-		context.extra.files = [ file ];
+		context.extra.files = override ? [] : ( context.extra.files ?? [] );
+		context.extra.files.push( file );
 	}
 
 	public parseMedia( context: Context, message: TT.Message ) {
@@ -544,7 +546,7 @@ export class TelegramMessageHandler extends MessageHandler<Telegraf, TContext, T
 			let sz = 0;
 			for ( const p of message.photo ) {
 				if ( p.file_size && p.file_size > sz ) {
-					this.setFile( context, p, "photo" );
+					this.setFile( context, p, "photo", true );
 					context.text = `<photo: ${ p.width }x${ p.height }, ${ getFriendlySize( p.file_size ) }>`;
 					sz = p.file_size;
 				}

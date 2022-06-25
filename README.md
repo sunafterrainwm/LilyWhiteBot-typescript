@@ -2,6 +2,8 @@ LilyWhiteBot-typescript
 ===
 在多個群組間傳話的機器人。為「LilyWhiteBot」（原名為「qq-tg-irc」）的 typescript 版本。
 
+[![GitHub top language](https://img.shields.io/github/languages/top/sunafterrainwm/LilyWhiteBot-typescript?style=flat-square&logo=github)](https://github.com/sunafterrainwm/LilyWhiteBot-typescript)
+
 ## 遷移說明
 此儲存庫與早期所有之「qq-tg-irc」及「LilyWhiteBot」配置文檔並不相容，請參考[文檔](https://github.com/sunafterrainwm/LilyWhiteBot-typescript/wiki/Migrate)。
 

@@ -9,7 +9,7 @@
 	},
 	"scripts": {
 		"start": "grunt built && node src/main.js",
-		"ts-start": "ts-node src/main.ts",
+		"ts-start": "ts-node -r tsconfig-paths/register --preferTsExts src/main.ts",
 		"test": "npm run lint && npm run build && npm start",
 		"lint": "eslint src/**",
 		"build": "grunt",
@@ -42,6 +42,7 @@
 		"@types/js-yaml": "^4.0.5",
 		"@types/lodash": "^4.14.181",
 		"@types/module-alias": "^2.0.1",
+		"@types/node": "^17.0.45",
 		"@types/request": "^2.48.8",
 		"@types/sharp": "^0.30.2",
 		"@types/string-format": "^2.0.0",
@@ -54,6 +55,8 @@
 		"eslint-plugin-import": "^2.26.0",
 		"grunt": "^1.5.2",
 		"grunt-contrib-clean": "^2.0.0",
+		"ts-node": "^10.8.1",
+		"tsconfig-paths": "^4.0.0",
 		"typegram": "^3.10.0"
 	},
 	"packageManager": "pnpm@7.1.9",
