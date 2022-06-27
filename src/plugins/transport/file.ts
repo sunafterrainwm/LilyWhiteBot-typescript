@@ -424,7 +424,7 @@ export function init( bridge: TransportBridge, _cnf: TransportConfig ) {
 			msg.extra.files &&
 			servemedia.type && servemedia.type !== "none"
 		) {
-			if ( !( msg.extra.uploads?.length ) ) {
+			if ( !!msg.extra.uploads?.length ) {
 				return;
 			}
 			const promises: Promise<UploadFile | null>[] = [];
