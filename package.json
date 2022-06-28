@@ -52,7 +52,7 @@
 		"eslint-plugin-import": "^2.26.0",
 		"grunt": "^1.5.2",
 		"grunt-contrib-clean": "^2.0.0",
-		"jpeg-js": "^0.4.3"
+		"jpeg-js": "^0.4.4"
 	},
 	"packageManager": "npm@7.0.0",
 	"engines": {
