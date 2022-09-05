@@ -135,7 +135,9 @@ function generateFileName( url?: string, name?: string ): string {
 	if ( extName === ".webp" ) {
 		extName = ".png";
 	}
-	extName = ".txt";
+	if ( ![ ".jpg", ".jpeg", ".png", ".webp", ".tiff", ".svg", ".gif", ".pdf", ".mp3", ".mp4", ".tgz" ].includes( extName ) ) {
+		extName = ".txt";
+	}
 	return crypto.createHash( "md5" ).update( name ?? ( Math.random() ).toString() ).digest( "hex" ) + extName;
 }
 

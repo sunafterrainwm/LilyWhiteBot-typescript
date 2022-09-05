@@ -15,11 +15,11 @@ export interface BridgeMsgOptions<rawdata extends RawMsg> extends ContextOptions
 export type RawDataBridgeMsg<R extends RawMsg = RawMsg> = BridgeMsg<R> & NotEmptyRequired<Pick<BridgeMsg<R>, "_rawdata">>;
 
 export class BridgeMsg<R extends RawMsg = RawMsg> extends Context<R> implements BridgeMsgOptions<R> {
-	protected onSet_from( newVal: string | number | null ) {
+	protected override onSet_from( newVal: string | number | null ) {
 		this._from_uid = `${ ( this._from_client || "" ).toLowerCase() }/${ String( newVal ) }`;
 	}
 
-	protected onSet_to( newVal: string | number | null ) {
+	protected override onSet_to( newVal: string | number | null ) {
 		this._to_uid = `${ ( this._to_client || "" ).toLowerCase() }/${ String( newVal ) }`;
 	}
 
