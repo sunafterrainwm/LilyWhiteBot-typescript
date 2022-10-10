@@ -3,12 +3,14 @@
  */
 
 import crypto = require( "crypto" );
+import FormData = require( "form-data" );
 import fs = require( "fs" );
 import path = require( "path" );
-import request = require( "request" );
 import sharp = require( "sharp" );
 import stream = require( "stream" );
 import winston = require( "winston" );
+
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 
 import type { File, UploadFile } from "@app/lib/handlers/Context";
 import type { TransportBridge, TransportConfig } from "@app/plugins/transport";
@@ -161,6 +163,31 @@ function convertFileType( type: string ): string {
 	}
 }
 
+class FetchStream extends stream.Transform {
+	public constructor( private url: string, private config?: AxiosRequestConfig | undefined ) {
+		super();
+		this.doFetch();
+	}
+
+	private async doFetch() {
+		try {
+			const res = await axios.get<stream.Readable>( this.url, Object.assign( {}, this.config, {
+				responseType: "stream"
+			} ) );
+			res.data.pipe( this );
+		} catch ( error ) {
+			this.emit( "error", error );
+		} finally {
+			this.end();
+		}
+	}
+
+	public override _transform( chunk: unknown, encoding: BufferEncoding, callback: stream.TransformCallback ) {
+		this.push( chunk, encoding );
+		callback();
+	}
+}
+
 /**
  * 下载/获取文件内容，对文件进行格式转换（如果需要的话），然后管道出去
  *
@@ -169,10 +196,10 @@ function convertFileType( type: string ): string {
  */
 function getFileStream( file: File ): stream.Readable {
 	const filePath = file.url ?? file.path ?? "";
-	let fileStream: stream.Stream;
+	let fileStream: stream.Readable;
 
 	if ( file.url ) {
-		fileStream = request.get( file.url );
+		fileStream = new FetchStream( file.url );
 	} else if ( file.path ) {
 		fileStream = fs.createReadStream( file.path );
 	} else {
@@ -193,7 +220,7 @@ function getFileStream( file: File ): stream.Readable {
 	//   // TODO: 語音使用silk格式，需要wx-voice解碼
 	// }
 
-	return fileStream as stream.Readable;
+	return fileStream;
 
 }
 
@@ -226,16 +253,34 @@ async function uploadToCache( file: File ) {
 	return String( servemedia.serveUrl ) + targetName;
 }
 
+function createTimeoutAbortSignal( timeOut: number ) {
+	const controller = new AbortController();
+	setTimeout( function () {
+		controller.abort( "Timeout." );
+	}, timeOut );
+	return controller.signal;
+}
+
+function createFormData( data: [ name: string, value: string | Blob, fileName?: string ][] ) {
+	const formData = new FormData();
+	for ( const [ name, value, fileName ] of data ) {
+		formData.append( name, value, fileName );
+	}
+	return formData;
+}
+
 /*
  * 上传到各种图床
  */
 function uploadToHost( file: File ) {
 	return new Promise<string>( function ( resolve, reject ) {
-		const requestOptions: Partial<request.CoreOptions & request.UrlOptions> = {
-			timeout: servemedia.timeout ?? 3000,
+		const requestOptions: Partial<AxiosRequestConfig<FormData>> = {
+			method: "POST",
+			signal: createTimeoutAbortSignal( servemedia.timeout ?? 30000 ),
 			headers: {
-				"User-Agent": servemedia.userAgent ?? USERAGENT
-			}
+				"Content-Type": "multipart/form-data"
+			},
+			responseType: "text"
 		};
 
 		const name = generateFileName( file.url ?? file.path, file.id );
@@ -254,20 +299,15 @@ function uploadToHost( file: File ) {
 				return buf.push( d );
 			} )
 			.on( "end", function () {
-				const pendingFile = Buffer.concat( buf as Uint8Array[] );
+				const pendingFile = new Blob( [ Buffer.concat( buf as Uint8Array[] ) ] );
 
 				switch ( servemedia.type ) {
 					case "vim-cn":
 					case "vimcn":
 						requestOptions.url = "https://img.vim-cn.com/";
-						requestOptions.formData = {
-							name: {
-								value: pendingFile,
-								options: {
-									filename: name
-								}
-							}
-						};
+						requestOptions.data = createFormData( [
+							[ "name", pendingFile, name ]
+						] );
 						break;
 
 					case "imgur":
@@ -279,64 +319,62 @@ function uploadToHost( file: File ) {
 						requestOptions.headers = Object.assign( requestOptions.headers ?? {}, {
 							Authorization: `Client-ID ${ servemedia.imgur.clientId }`
 						} );
-						requestOptions.json = true;
-						requestOptions.formData = {
-							type: "file",
-							image: {
-								value: pendingFile,
-								options: {
-									filename: name
-								}
-							}
-						};
+						requestOptions.data = createFormData( [
+							[ "type", "file" ],
+							[ "image", pendingFile, name ]
+						] );
 						break;
 
 					case "uguu":
 						requestOptions.url = servemedia.uguuApiUrl; // 原配置文件以大写字母开头
-						requestOptions.formData = {
-							file: {
-								value: pendingFile,
-								options: {
-									filename: name
-								}
-							},
-							randomname: "true"
-						};
+						requestOptions.data = createFormData( [
+							[ "file", pendingFile, name ],
+							[ "randomname", "true" ]
+						] );
 						break;
 
 					default:
 						reject( new Error( "Unknown host type" ) );
+						return;
 				}
 
-				requestOptions.timeout = 30000;
-
-				request.post(
-					requestOptions as request.CoreOptions & request.UrlOptions,
-					function ( error, response, body ) {
-						if ( !error && response.statusCode === 200 ) {
+				axios.postForm<string, AxiosResponse<string>, AxiosRequestConfig<FormData>>(
+					requestOptions.url,
+					requestOptions
+				)
+					.then( function ( response ) {
+						if ( response.status === 200 ) {
 							switch ( servemedia.type ) {
 								case "vim-cn":
 								case "vimcn":
-									resolve( String( body ).trim().replace( "http://", "https://" ) );
+									resolve( String( response.data ).trim().replace( "http://", "https://" ) );
 									break;
 								case "uguu":
-									resolve( String( body ).trim() );
+									resolve( String( response.data ).trim() );
 									break;
 								case "imgur":
-									// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-									if ( body && !body.success ) {
-										// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-										reject( new Error( `Imgur return: ${ body?.data?.error as string | undefined ?? JSON.stringify( body ) }` ) );
+									// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+									const json: {
+										success: boolean;
+										data: {
+											error?: string;
+											link?: string;
+										};
+									} = JSON.parse( response.data );
+									// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+									if ( json && !json.success ) {
+
+										reject( new Error( `Imgur return: ${ json.data.error ?? JSON.stringify( json ) }` ) );
 									} else {
-										// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-										resolve( body?.data?.link as string );
+										// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+										resolve( json.data.link! );
 									}
 									break;
 							}
 						} else {
-							reject( new Error( String( error ) ) );
+							reject( new Error( String( response.data ) ) );
 						}
-					} );
+					} ).catch( reject );
 			} );
 	} );
 }
@@ -348,21 +386,22 @@ function uploadToLinx( file: File ) {
 	return new Promise<string>( function ( resolve, reject ) {
 		const name = generateFileName( file.url ?? file.path, file.id );
 
-		pipeFileStream( file, request.put( {
-			url: String( servemedia.linxApiUrl ) + name,
+		const fileStream = getFileStream( file );
+		axios.put( String( servemedia.linxApiUrl ) + name, fileStream, {
 			headers: {
 				"User-Agent": servemedia.userAgent ?? USERAGENT,
 				"Linx-Randomize": "yes",
 				Accept: "application/json"
-			}
-		}, function ( error, response, body ) {
-			if ( !error && response.statusCode === 200 ) {
+			},
+			responseType: "text"
+		} ).then( function ( response ) {
+			if ( response.status === 200 ) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-				resolve( JSON.parse( body as string ).direct_url as string );
+				resolve( JSON.parse( response.data as string ).direct_url as string );
 			} else {
-				reject( new Error( String( error ) ) );
+				reject( new Error( String( response.data ) ) );
 			}
-		} ) ).catch( function ( err ) {
+		} ).catch( function ( err ) {
 			reject( err );
 		} );
 	} );
@@ -417,6 +456,13 @@ export function init( bridge: TransportBridge, _cnf: TransportConfig ) {
 	servemedia = cnf.options.servemedia ?? {
 		type: "none"
 	};
+
+	axios.interceptors.request.use( function ( config ) {
+		config.headers = config.headers ?? {};
+		config.headers[ "User-Agent" ] = servemedia.userAgent ?? USERAGENT;
+		// Do something before request is sent
+		return config;
+	}, undefined, { synchronous: true } );
 
 	bridge.addHook( "bridge.send", async function ( msg ) {
 		// 上传文件

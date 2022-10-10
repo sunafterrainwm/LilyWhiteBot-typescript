@@ -144,3 +144,4 @@ data/
 /docker-compose.yaml
 tempCodeRunnerFile.*
 /.vscode
+plugins
