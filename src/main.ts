@@ -1,4 +1,4 @@
-/** eslint-disable @typescript-eslint/restrict-template-expressions */
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 /**
  * LilyWhiteBot
  * https://github.com/mrhso/LilyWhiteBot
