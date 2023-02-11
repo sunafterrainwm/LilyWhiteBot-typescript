@@ -2,6 +2,9 @@
  * 集中處理檔案：將檔案上傳到圖床，取得 URL 並儲存至 context 中
  */
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+( require( "axios" ) as {default: object;} ).default = require( "axios" ) as object;
+
 import crypto = require( "crypto" );
 import FormData = require( "form-data" );
 import fs = require( "fs" );
@@ -353,7 +356,7 @@ function uploadToHost( file: File ) {
 									resolve( String( response.data ).trim() );
 									break;
 								case "imgur":
-									// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+									// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, no-case-declarations
 									const json: {
 										success: boolean;
 										data: {
