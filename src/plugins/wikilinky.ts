@@ -54,7 +54,7 @@ function linky( string: string, articlePath: string ) {
 
 	const ret: string[] = [];
 
-	let $m: RegExpMatchArray | null,
+	let $m: RegExpMatchArray | [],
 		$page: string,
 		$section: string,
 		$title: string;
