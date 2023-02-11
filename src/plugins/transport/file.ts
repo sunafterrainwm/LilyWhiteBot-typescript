@@ -180,8 +180,6 @@ class FetchStream extends stream.Transform {
 			res.data.pipe( this );
 		} catch ( error ) {
 			this.emit( "error", error );
-		} finally {
-			this.end();
 		}
 	}
 
